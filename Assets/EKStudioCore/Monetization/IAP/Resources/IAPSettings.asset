@@ -1,0 +1,162 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed31051d76d560c479c2e5b78c701628, type: 3}
+  m_Name: IAPSettings
+  m_EditorClassIdentifier: 
+  enableIAP: 1
+  coinSaveKey: Coins
+  gemSaveKey: Gems
+  boosterKeyPrefix: Booster_
+  allBoosterTypes:
+  - extraslot
+  - moveshooter
+  - supershooter
+  enableNoAds: 1
+  noAdsProductId: com.yourcompany.yourapp.removeads
+  noAdsPrice: $0.99
+  customProducts:
+  - productId: com.yourcompany.yourapp.starterpack
+    productName: Starter Pack
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 0
+    price: $4.99
+    coinReward: 500
+    gemReward: 0
+    boosterRewards:
+    - boosterType: all
+      amount: 5
+    timedFreeCooldown: 3600
+    includesNoAds: 1
+  - productId: com.yourcompany.yourapp.boosterpack
+    productName: Booster Pack
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 0
+    price: $0.99
+    coinReward: 0
+    gemReward: 0
+    boosterRewards:
+    - boosterType: all
+      amount: 5
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.coinpack1
+    productName: CoinPack1
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 0
+    price: $0.99
+    coinReward: 200
+    gemReward: 0
+    boosterRewards: []
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.coinpack2
+    productName: CoinPack2
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 0
+    price: $0.99
+    coinReward: 500
+    gemReward: 0
+    boosterRewards: []
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.coinpack3
+    productName: CoinPack3
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 0
+    price: $0.99
+    coinReward: 1000
+    gemReward: 0
+    boosterRewards: []
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.cointimerfree
+    productName: CoinTimerFree
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 1
+    price: $0.99
+    coinReward: 100
+    gemReward: 0
+    boosterRewards: []
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.coinrewarded
+    productName: CoinRewarded
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 2
+    price: $0.99
+    coinReward: 100
+    gemReward: 0
+    boosterRewards:
+    - boosterType: all
+      amount: 5
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.rwextraslot
+    productName: rwextraslot
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 2
+    price: $0.99
+    coinReward: 0
+    gemReward: 0
+    boosterRewards:
+    - boosterType: extraslot
+      amount: 1
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.rwmoveshooter
+    productName: rwmoveshooter
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 2
+    price: $0.99
+    coinReward: 0
+    gemReward: 0
+    boosterRewards:
+    - boosterType: moveshooter
+      amount: 1
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  - productId: com.yourcompany.yourapp.rwsupershooter
+    productName: rwsupershooter
+    androidProductId: 
+    iosProductId: 
+    productType: 1
+    purchaseMethod: 2
+    price: $0.99
+    coinReward: 0
+    gemReward: 0
+    boosterRewards:
+    - boosterType: supershooter
+      amount: 1
+    timedFreeCooldown: 3600
+    includesNoAds: 0
+  googlePlayPublicKey: 
+  appleSharedSecret: 
+  usePlatformSpecificIds: 0
+  debugMode: 1

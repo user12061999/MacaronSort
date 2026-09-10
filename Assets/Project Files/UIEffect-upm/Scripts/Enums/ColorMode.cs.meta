@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: e6ba1e487e0a19644afde2bd5531bd04
+timeCreated: 1528296875
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/UIEffect-upm/Scripts/Enums/ColorMode.cs
+  uploadId: 935932

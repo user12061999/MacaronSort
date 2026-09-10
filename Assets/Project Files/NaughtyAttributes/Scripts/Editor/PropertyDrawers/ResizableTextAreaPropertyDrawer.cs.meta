@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6e27ffd9a96b58c46bb74cc93de3e06f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/NaughtyAttributes/Scripts/Editor/PropertyDrawers/ResizableTextAreaPropertyDrawer.cs
+  uploadId: 935932

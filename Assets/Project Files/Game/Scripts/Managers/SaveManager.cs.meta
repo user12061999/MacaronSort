@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: dbfbe810caf6f0e45800b6b6ba87118a
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Scripts/Managers/SaveManager.cs
+  uploadId: 935932

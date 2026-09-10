@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 771776453ad34b045a41dea54856fa12
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/NaughtyAttributes/Scripts/Editor/PropertyDrawers_SpecialCase/SpecialCasePropertyDrawerBase.cs
+  uploadId: 935932

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 51532d7d5720cd44abba75046a7990b2
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/UI_Prefabs/Store.prefab
+  uploadId: 935932

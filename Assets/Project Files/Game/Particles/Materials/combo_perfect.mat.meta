@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b31cf224cb3093a4fb6826dd34c0313a
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Materials/combo_perfect.mat
+  uploadId: 935932

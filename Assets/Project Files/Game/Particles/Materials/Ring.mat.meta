@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d0b2bbdc8deba2d4980d17162c398d8e
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Materials/Ring.mat
+  uploadId: 935932

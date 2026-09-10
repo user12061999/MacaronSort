@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fa6cab142d34da44f91f44bf26a50bd8
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Models/LevelMesh/Level_081_TrackMesh.asset
+  uploadId: 935932

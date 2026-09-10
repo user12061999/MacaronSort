@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 1bcd2a849ce5168458695cfb474c7e47
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Resources/BillingMode.json
+  uploadId: 935932

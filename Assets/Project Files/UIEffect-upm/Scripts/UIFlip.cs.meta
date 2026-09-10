@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 9bb4e59514e90489d985e9a17c838085
+timeCreated: 1525607243
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/UIEffect-upm/Scripts/UIFlip.cs
+  uploadId: 935932

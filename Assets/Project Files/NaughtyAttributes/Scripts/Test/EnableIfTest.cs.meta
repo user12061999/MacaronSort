@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: bed506d8be3a10f45bec4bf2237bec87
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/NaughtyAttributes/Scripts/Test/EnableIfTest.cs
+  uploadId: 935932

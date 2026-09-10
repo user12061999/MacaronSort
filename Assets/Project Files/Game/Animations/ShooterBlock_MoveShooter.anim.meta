@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 294432905045dd642bc909c6d29641ef
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Animations/ShooterBlock_MoveShooter.anim
+  uploadId: 935932

@@ -1,0 +1,95 @@
+using System;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace BlockShooter
+{
+    public class LevelManager : MonoBehaviour
+    {
+        public static LevelManager Instance { get; private set; }
+        public static event Action<LevelRoot> OnLevelLoaded;
+
+        [Header("Spawn Point")]
+        [Tooltip("Parent transform under which the active level prefab is instantiated.")]
+        public Transform levelSpawnParent;
+
+        private LevelRoot _activeLevelRoot;
+
+        public LevelRoot CurrentLevelRoot => _activeLevelRoot;
+        public int CurrentLevelIndex     => SaveManager.CurrentLevel;
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+            Instance = this;
+        }
+
+        private void Start()
+        {
+            LoadCurrentLevel();
+        }
+
+        public void LoadCurrentLevel()
+        {
+            var prefabs = GameManager.Instance != null && GameManager.Instance.config != null && GameManager.Instance.config.levelPrefabs != null && GameManager.Instance.config.levelPrefabs.Count > 0
+                ? GameManager.Instance.config.levelPrefabs
+                : null;
+
+            int count = prefabs != null ? prefabs.Count : 0;
+            if (count == 0)
+            {
+                Debug.LogWarning("[LevelManager] No level prefabs assigned in GameConfig.");
+                return;
+            }
+
+            int index;
+            int currentLevel = SaveManager.CurrentLevel;
+
+            if (currentLevel <= count)
+            {
+                index = currentLevel - 1;
+            }
+            else
+            {
+                int startRandomIndex = 9; // 10th level is index 9 (0-indexed)
+                if (count <= 10)
+                {
+                    startRandomIndex = 0;
+                }
+
+                var originalState = UnityEngine.Random.state;
+                UnityEngine.Random.InitState(currentLevel);
+                index = UnityEngine.Random.Range(startRandomIndex, count);
+                UnityEngine.Random.state = originalState;
+            }
+            
+            LevelRoot targetPrefab = prefabs[Mathf.Clamp(index, 0, count - 1)];
+            SpawnLevel(targetPrefab);
+        }
+
+        private void SpawnLevel(LevelRoot prefab)
+        {
+            if (_activeLevelRoot != null)
+                Destroy(_activeLevelRoot.gameObject);
+
+            Transform parent = levelSpawnParent != null ? levelSpawnParent : transform;
+            _activeLevelRoot = Instantiate(prefab, parent);
+            _activeLevelRoot.transform.localPosition = Vector3.zero;
+
+            if (Camera.main != null)
+            {
+                Camera.main.orthographicSize = _activeLevelRoot.cameraSize;
+                Vector3 pos = Camera.main.transform.position;
+                pos.z = _activeLevelRoot.cameraZ;
+                Camera.main.transform.position = pos;
+            }
+
+            _activeLevelRoot.Initialize();
+            OnLevelLoaded?.Invoke(_activeLevelRoot);
+        }
+
+        public void RestartLevel()  => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        public void LoadNextLevel() => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        public void LoadMainMenu()  => SceneManager.LoadScene("Menu");
+    }
+}

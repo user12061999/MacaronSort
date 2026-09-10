@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9404150a4ad5aed43913c1c0a2e6964e
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/Tunnel.prefab
+  uploadId: 935932

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b968127cf8733984c83ea4e74f896927
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/EKStudioCore/Monetization/Ads/UI/GDPRCanvas.prefab
+  uploadId: 935932

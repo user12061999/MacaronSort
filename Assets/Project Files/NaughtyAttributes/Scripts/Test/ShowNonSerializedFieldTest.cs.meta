@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 913d67a695253f744bdc776625b9b948
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/NaughtyAttributes/Scripts/Test/ShowNonSerializedFieldTest.cs
+  uploadId: 935932

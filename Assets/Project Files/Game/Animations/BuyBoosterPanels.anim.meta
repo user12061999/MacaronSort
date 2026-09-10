@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 788f1976ae2bac4499876eae3ca367eb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Animations/BuyBoosterPanels.anim
+  uploadId: 935932

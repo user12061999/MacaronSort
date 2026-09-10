@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 9a1817bb553014d4c9a665d4fa202202
+timeCreated: 1474899097
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Vibration/Vibration.cs
+  uploadId: 935932

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d66a365e3ab884941a522781f90996fb
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/UI_Prefabs/HardLevelNode_Active.prefab
+  uploadId: 935932

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6d4b6175fef54d94ba528c9bcfa09564
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Combo_Nice.prefab
+  uploadId: 935932

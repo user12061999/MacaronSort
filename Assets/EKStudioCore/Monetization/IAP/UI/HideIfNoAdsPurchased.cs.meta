@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: b6729120e332f0d46819b79d96122b1f
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/EKStudioCore/Monetization/IAP/UI/HideIfNoAdsPurchased.cs
+  uploadId: 935932

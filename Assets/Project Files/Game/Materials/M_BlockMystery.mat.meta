@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6f1aad8d6fd5aa9448fc7efc312d4dfb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Materials/M_BlockMystery.mat
+  uploadId: 935932

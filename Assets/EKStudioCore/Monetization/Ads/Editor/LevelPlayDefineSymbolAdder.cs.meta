@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 98ab02445ec2d0040a92b401f9794a31
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/EKStudioCore/Monetization/Ads/Editor/LevelPlayDefineSymbolAdder.cs
+  uploadId: 935932

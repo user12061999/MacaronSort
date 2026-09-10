@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 272b41ec393af4447bc0c21a086fbba3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Materials/fx_glow_ray.mat
+  uploadId: 935932

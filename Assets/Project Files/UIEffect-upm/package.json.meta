@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 546af75b6221c4768be79d67c9cea1fb
+timeCreated: 1547605752
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/UIEffect-upm/package.json
+  uploadId: 935932

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b7ce8cef00ac44e57a4ea6c6e258daca
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Materials/fx_star1.mat
+  uploadId: 935932

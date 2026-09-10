@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f8a308b2e90b3d2448bc29b309889527
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/UI_Prefabs/UI_Canvas.prefab
+  uploadId: 935932

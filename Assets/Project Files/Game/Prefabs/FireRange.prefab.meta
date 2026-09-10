@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 811b749e63bcb5142976d5f4f148bba8
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/FireRange.prefab
+  uploadId: 935932

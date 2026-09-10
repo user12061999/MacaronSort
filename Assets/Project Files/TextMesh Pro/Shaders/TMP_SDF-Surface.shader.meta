@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f7ada0af4f174f0694ca6a487b8f543d
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/TextMesh Pro/Shaders/TMP_SDF-Surface.shader
+  uploadId: 935932

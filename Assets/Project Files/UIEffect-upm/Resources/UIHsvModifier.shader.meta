@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7fc74090480c84f8b977cfcd55cdfe82
+timeCreated: 1531882595
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/UIEffect-upm/Resources/UIHsvModifier.shader
+  uploadId: 935932

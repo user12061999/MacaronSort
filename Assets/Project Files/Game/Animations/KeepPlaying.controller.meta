@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 34d419394128e08428e03881dda0aea2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Animations/KeepPlaying.controller
+  uploadId: 935932

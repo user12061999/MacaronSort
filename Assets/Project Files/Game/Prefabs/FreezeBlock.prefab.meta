@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 340d077a5ba6ed44d81577e7f3bc9b00
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/FreezeBlock.prefab
+  uploadId: 935932

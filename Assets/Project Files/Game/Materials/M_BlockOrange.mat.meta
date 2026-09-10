@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 25b93ace3fb5c344bb38ab9de0136cd7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Materials/M_BlockOrange.mat
+  uploadId: 935932

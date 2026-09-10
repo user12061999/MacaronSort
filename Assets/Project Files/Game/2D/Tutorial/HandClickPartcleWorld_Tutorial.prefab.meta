@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: aeddcdec9dcef3f4fb54213484084161
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/2D/Tutorial/HandClickPartcleWorld_Tutorial.prefab
+  uploadId: 935932

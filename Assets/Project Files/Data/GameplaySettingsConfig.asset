@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 009295d125c21744181026f24b05e4fd, type: 3}
+  m_Name: GameplaySettingsConfig
+  m_EditorClassIdentifier: 
+  fireRate: 0.02
+  projectileSpeed: 60
+  conveyorSpeed: 0.9
+  startGameCoins: 100
+  playOnCost: 900
+  winRewardCoins: 40
+  enableDoubleCoinFeature: 1
+  doubleCoinUnlockLevel: 10
+  mysteryShooterUnlockLevel: 15
+  freezeShooterUnlockLevel: 25
+  tunnelUnlockLevel: 35
+  extraSlotSettings:
+    unlockLevel: 12
+    buyCost: 900
+  superShooterSettings:
+    unlockLevel: 32
+    buyCost: 900
+  moveShooterSettings:
+    unlockLevel: 22
+    buyCost: 900

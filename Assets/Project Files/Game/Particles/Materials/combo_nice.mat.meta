@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8293e24bddecfbc45b40256bcb6e9966
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Materials/combo_nice.mat
+  uploadId: 935932

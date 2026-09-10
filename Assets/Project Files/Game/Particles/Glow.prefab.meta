@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e785c23f33e55014fbbf0447142aae52
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/Glow.prefab
+  uploadId: 935932

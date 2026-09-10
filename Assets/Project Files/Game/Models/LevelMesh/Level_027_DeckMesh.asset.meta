@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6b231babdb7ff8d4b928ae166e552ceb
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Models/LevelMesh/Level_027_DeckMesh.asset
+  uploadId: 935932

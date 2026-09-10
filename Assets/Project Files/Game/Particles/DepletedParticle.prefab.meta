@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a5a38311f976ad54e8d0f05d055d2cb9
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/DepletedParticle.prefab
+  uploadId: 935932

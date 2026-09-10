@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 12fe760b4c1250b49834abbac9208222
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Prefabs/ConveyorBlock3D.prefab
+  uploadId: 935932

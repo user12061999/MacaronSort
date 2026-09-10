@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4f3bd88cab82b8d4da47842e61ca0d26
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Animations/Loading_Bar.controller
+  uploadId: 935932

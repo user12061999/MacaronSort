@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 16857cac7da564347876420ef55a734a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/UIEffect-upm/Scripts/Editor/MaterialDirtyScope.cs
+  uploadId: 935932

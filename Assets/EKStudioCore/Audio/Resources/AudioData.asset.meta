@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bf84161759c81f240a9b6ac8a8f8ce65
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/EKStudioCore/Audio/Resources/AudioData.asset
+  uploadId: 935932

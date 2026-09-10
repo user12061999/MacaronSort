@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 01239cf44287d7c4783d2a12bdebd1ba
+timeCreated: 1447594864
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 386904
+  packageName: Block Shooter | Puzzle Game Template
+  packageVersion: 1.0
+  assetPath: Assets/Project Files/Game/Particles/TunnelExplosion.prefab
+  uploadId: 935932
