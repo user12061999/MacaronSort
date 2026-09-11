@@ -42,6 +42,7 @@ namespace BlockShooter.Editor
             factory.conveyorSource = AssetDatabase.LoadAssetAtPath<LevelRoot>("Assets/Project Files/Data/Levels/Level_001.prefab");
             ConfigureProps(factory);
             EditorSceneManager.SaveScene(scene, ScenePath);
+            MacaronLevelAuthoring.CreateStarterLevels();
             var scenes = EditorBuildSettings.scenes.Where(s => s.path != ScenePath).ToList();
             scenes.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
@@ -65,8 +66,8 @@ namespace BlockShooter.Editor
 
         private static void ConfigureProps(MacaronFactory factory)
         {
-            factory.trayPrefab = CreateTrayPrefab("2x4");
-            factory.trayPrefabs = new[] { factory.trayPrefab, CreateTrayPrefab("1x4") };
+            CreateTrayPrefab("2x4");
+            CreateTrayPrefab("1x4");
             int[] colors = { 2, 4, 3, 6, 7, 1 };
             factory.macaronPrefabs = colors.Select(i => AssetDatabase.LoadAssetAtPath<GameObject>(
                 $"Assets/Macaron_Props/Prefabs/Macaron_{i}.prefab")).ToArray();
@@ -121,10 +122,6 @@ namespace BlockShooter.Editor
         [MenuItem("Tools/Macaron Factory/Run Checks")]
         public static void RunChecks()
         {
-            Check(!MacaronFactory.MysteryStage(6), "Stage 6 must not hide colors");
-            Check(MacaronFactory.MysteryStage(7), "Stage 7 introduces mystery trays");
-            Check(!MacaronFactory.MysteryStage(8) && !MacaronFactory.MysteryStage(9), "Stages 8-9 have no mystery trays");
-            Check(MacaronFactory.MysteryStage(10) && MacaronFactory.MysteryStage(100), "Stage 10+ hides colors");
             var rect = new Rect(0, 0, 2, 1);
             Check(MacaronTray.Blocks(new Rect(1.9f, .9f, 2, 1), 1, rect, 0), "Partial corner overlap blocks");
             Check(!MacaronTray.Blocks(rect, 0, rect, 0), "Same layer cannot block");
@@ -272,7 +269,7 @@ namespace BlockShooter.Editor
             var originalFront = front.ToArray();
             var first = factory.Rows[0][0];
             var later = factory.Rows.SelectMany(r => r).First(b => b.ColorType != first.ColorType);
-            var temporary = UnityEngine.Object.Instantiate(factory.trayPrefab);
+            var temporary = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<MacaronTray>("Assets/MacaronFactory/Prefabs/Tray_2x4.prefab"));
             try
             {
                 temporary.Initialize(factory, later.ColorType, 0, false, Vector3.zero);

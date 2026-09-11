@@ -13,10 +13,22 @@ namespace BlockShooter.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
-            EditorGUILayout.HelpBox("Edit this prefab in Prefab Mode. Move/rotate children under Trays. Each tray stores its color, stack layer and mystery flag. Sibling order breaks ties in cake supply order. Edit Conveyor Path with Unity's Spline tool.", MessageType.Info);
+            EditorGUILayout.HelpBox("Edit this prefab in Prefab Mode. Move/rotate children under Trays. Each tray stores its color, stack layer and mystery flag. Enable Use Custom Macaron Order to author supply independently; batches are read top to bottom. Otherwise sibling order breaks ties. Edit Conveyor Path with Unity's Spline tool.", MessageType.Info);
+            var selected = (MacaronLevel)target;
+            if (selected.useCustomMacaronOrder && selected.trayRoot != null)
+            {
+                try
+                {
+                    var supply = selected.BuildMacaronOrder();
+                    EditorGUILayout.HelpBox($"{supply.Count} cakes / {Mathf.CeilToInt((float)supply.Count / Mathf.Max(1, selected.columns))} rows. Color counts match the trays. This does not check solvability.", MessageType.Info);
+                }
+                catch (System.Exception error) { EditorGUILayout.HelpBox(error.Message, MessageType.Error); }
+            }
             if (GUILayout.Button("Rebuild conveyor preview"))
             {
                 var level = (MacaronLevel)target;
+                Undo.RecordObject(level.conveyorPath, "Center conveyor exit");
+                level.AlignExitToWaitingSlots();
                 var builder = level.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
                 Undo.RecordObject(builder, "Resize conveyor preview");
                 builder.beltHalfWidth = level.laneSpacing * (level.columns - 1) * .5f + .16f;
@@ -57,12 +69,77 @@ namespace BlockShooter.Editor
             var compact = CreateLevel("Level_01_Packed", false, factory, panelMesh, cream, wood, belt, pad);
             var stacked = CreateLevel("Level_02_Stacked", true, factory, panelMesh, cream, wood, belt, pad);
             Undo.RecordObject(factory, "Assign hand-authored levels");
-            factory.levels = new[] { compact, stacked };
+            var welcome = AssetDatabase.LoadAssetAtPath<MacaronLevel>(Folder + "/Level_01_Welcome.prefab");
+            factory.levels = welcome != null ? new[] { welcome, compact, stacked } : new[] { compact, stacked };
             EditorUtility.SetDirty(factory);
             EditorSceneManager.MarkSceneDirty(factory.gameObject.scene);
             EditorSceneManager.SaveScene(factory.gameObject.scene);
             AssetDatabase.SaveAssets();
             Selection.activeObject = compact;
+        }
+
+        [MenuItem("Tools/Macaron Factory/Create First Level")]
+        public static void CreateFirstLevel()
+        {
+            if (EditorApplication.isPlaying) throw new System.InvalidOperationException("Stop Play Mode before authoring levels.");
+            var factory = Object.FindFirstObjectByType<MacaronFactory>();
+            if (factory == null) throw new System.InvalidOperationException("Open MacaronFactory scene first.");
+            string path = Folder + "/Level_01_Welcome.prefab";
+            var first = AssetDatabase.LoadAssetAtPath<MacaronLevel>(path);
+            if (first == null)
+            {
+                var root = PrefabUtility.LoadPrefabContents(Folder + "/Level_01_Packed.prefab");
+                try
+                {
+                    root.name = "Level_01_Welcome";
+                    var level = root.GetComponent<MacaronLevel>();
+                    foreach (Transform child in level.trayRoot.Cast<Transform>().ToArray()) Object.DestroyImmediate(child.gameObject);
+                    level.columns = 2;
+                    level.useCustomMacaronOrder = true;
+                    level.instruction = "Choose a tray matching the front macarons.";
+                    var colors = new[] { BlockColorType.Red, BlockColorType.Green, BlockColorType.Blue,
+                        BlockColorType.Red, BlockColorType.Green, BlockColorType.Blue };
+                    level.macaronOrder = colors.Select(color => new MacaronLevel.MacaronBatch { color = color, count = 4 }).ToArray();
+                    var small = AssetDatabase.LoadAssetAtPath<MacaronTray>("Assets/MacaronFactory/Prefabs/Tray_1x4.prefab");
+                    for (int i = 0; i < colors.Length; i++)
+                    {
+                        Tray(level, small, (i % 3 - 1) * 1.78f, i < 3 ? -1.35f : -2.25f, 0, 0, colors[i], false, factory);
+                        var tray = level.trayRoot.GetChild(i);
+                        tray.localScale = Vector3.one * 1.15f;
+                        PrefabUtility.RecordPrefabInstancePropertyModifications(tray);
+                        foreach (var renderer in tray.GetComponentsInChildren<Renderer>(true))
+                            if (renderer.name.StartsWith("Macaron_Row"))
+                            {
+                                renderer.sharedMaterial = Material("Tray lining", new Color(.85f,.8f,.7f));
+                                PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                            }
+                    }
+                    root.transform.Find("Tray board rim").localPosition = new Vector3(0,-.24f,-1.85f);
+                    root.transform.Find("Tray board rim").localScale = new Vector3(6.2f,.3f,2.65f);
+                    root.transform.Find("Tray board inset").localPosition = new Vector3(0,-.09f,-1.85f);
+                    root.transform.Find("Tray board inset").localScale = new Vector3(6.04f,.025f,2.49f);
+                    var builder = level.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
+                    float diameter = factory.macaronPrefabs.Max(prefab => {
+                        var bounds = prefab.GetComponent<Renderer>().localBounds;
+                        return 2 * factory.conveyorMacaronScale * Mathf.Max(Mathf.Abs(bounds.center.x) + bounds.extents.x,
+                            Mathf.Abs(bounds.center.z) + bounds.extents.z);
+                    });
+                    level.laneSpacing = Mathf.Max(level.laneSpacing, diameter + .015f);
+                    builder.beltHalfWidth = level.laneSpacing * .5f + Mathf.Max(.16f, diameter * .5f + .02f);
+                    builder.BuildMesh();
+                    AssetDatabase.CreateAsset(builder.GetComponent<MeshFilter>().sharedMesh, Folder + "/Level_01_Welcome_Track.asset");
+                    first = PrefabUtility.SaveAsPrefabAsset(root, path).GetComponent<MacaronLevel>();
+                }
+                finally { PrefabUtility.UnloadPrefabContents(root); }
+            }
+            Undo.RecordObject(factory, "Add welcome level");
+            factory.levels = new[] { first }.Concat(factory.levels.Where(level => level != null && level != first)).ToArray();
+            factory.stageOverride = 1;
+            EditorUtility.SetDirty(factory);
+            EditorSceneManager.MarkSceneDirty(factory.gameObject.scene);
+            EditorSceneManager.SaveScene(factory.gameObject.scene);
+            AssetDatabase.SaveAssets();
+            Selection.activeObject = first;
         }
 
         private static MacaronLevel CreateLevel(string name, bool stacked, MacaronFactory factory, Mesh panel,
@@ -137,6 +214,7 @@ namespace BlockShooter.Editor
                     Tray(level, small,0,-4.05f,0,0,BlockColorType.Red,false,factory);
                     Tray(level, small,1.56f,-4.05f,0,0,BlockColorType.Yellow,false,factory);
                 }
+                ApplyVisualLayout(level, stacked);
                 return PrefabUtility.SaveAsPrefabAsset(root, path).GetComponent<MacaronLevel>();
             }
             finally { Object.DestroyImmediate(root); }
@@ -168,18 +246,59 @@ namespace BlockShooter.Editor
             PrefabUtility.RecordPrefabInstancePropertyModifications(go.transform);
         }
 
+        public static void ApplyVisualLayout(MacaronLevel level, bool stacked)
+        {
+            // Coordinates are authored for the existing 1x4 / 2x4 variants at 1.15 scale.
+            Vector3[] poses = stacked ? new[] {
+                new Vector3(-1.78f,-1.5f,0), new Vector3(0,-1.5f,0), new Vector3(1.78f,-1.5f,0),
+                new Vector3(-2.15f,-3.05f,90), new Vector3(0,-2.72f,0), new Vector3(2.15f,-3.05f,90),
+                new Vector3(-1.75f,-1.75f,90), new Vector3(0,-1.65f,15), new Vector3(1.75f,-1.75f,90),
+                new Vector3(-.88f,-3.12f,0), new Vector3(1.2f,-3.42f,-12), new Vector3(0,-4.2f,0)
+            } : new[] {
+                new Vector3(-1.78f,-1.45f,0), new Vector3(0,-1.45f,0), new Vector3(1.78f,-1.45f,0),
+                new Vector3(-2.18f,-3.02f,90), new Vector3(-.89f,-2.66f,0), new Vector3(.89f,-2.66f,0),
+                new Vector3(2.18f,-3.02f,90), new Vector3(-1.78f,-4.32f,0), new Vector3(0,-4.32f,0), new Vector3(1.78f,-4.32f,0)
+            };
+            var trays = level.GetTrays();
+            for (int i = 0; i < Mathf.Min(trays.Length, poses.Length); i++)
+            {
+                trays[i].transform.localScale = Vector3.one * 1.15f;
+                trays[i].transform.localPosition = new Vector3(poses[i].x, trays[i].stackLayer * .48f, poses[i].y);
+                trays[i].transform.localRotation = Quaternion.Euler(0, poses[i].z, 0);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(trays[i].transform);
+                foreach (var renderer in trays[i].GetComponentsInChildren<Renderer>(true))
+                    if (renderer.name.StartsWith("Macaron_Row"))
+                    {
+                        renderer.sharedMaterial = Material("Tray lining", new Color(.85f,.8f,.7f));
+                        PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                    }
+            }
+            var table = level.transform.Find("Tray board rim");
+            table.localPosition = new Vector3(0,-.24f,-2.75f);
+            table.localScale = new Vector3(6.2f,.3f,4.45f);
+            var inset = level.transform.Find("Tray board inset");
+            inset.localPosition = new Vector3(0,-.09f,-2.75f);
+            inset.localScale = new Vector3(6.04f,.025f,4.29f);
+            table = level.transform.Find("Conveyor board rim");
+            table.localPosition = new Vector3(0,-.24f,3.025f);
+            table.localScale = new Vector3(6.6f,.3f,5.25f);
+            inset = level.transform.Find("Conveyor board inset");
+            inset.localPosition = new Vector3(0,-.09f,3.025f);
+            inset.localScale = new Vector3(6.44f,.025f,5.09f);
+            level.transform.Find("Entrance hood").localPosition = new Vector3(2.45f,.3f,4.95f);
+            level.counterAnchor.localPosition = new Vector3(1.7f,.16f,1.3f);
+            level.transform.Find("Remaining badge").localPosition = new Vector3(1.7f,.07f,1.3f);
+        }
+
         public static Spline CreateStarterConveyorPath(bool stacked)
         {
-            float exitX = stacked ? .7f : 1.1f;
             Vector3[] points = {
-                new(2.75f,0,5.1f), new(-1.85f,0,5.1f), new(-2.5f,0,4.35f),
-                new(-1.85f,0,3.6f), new(1.85f,0,3.6f), new(2.5f,0,2.85f),
-                new(1.85f,0,2.1f), new(exitX + .6f,0,2.1f),
-                new(exitX,0,1.5f), new(exitX,0,.85f)
+                new(2.4f,0,4.95f), new(-1.4f,0,4.95f), new(-2.5f,0,3.85f),
+                new(-1.4f,0,2.75f), new(-.85f,0,2.75f), new(0,0,1.9f), new(0,0,.85f)
             };
             Vector3[] directions = {
-                Vector3.left, Vector3.left, Vector3.back, Vector3.right, Vector3.right,
-                Vector3.back, Vector3.left, Vector3.left, Vector3.back, Vector3.back
+                Vector3.left, Vector3.left, Vector3.back, Vector3.right,
+                Vector3.right, Vector3.back, Vector3.back
             };
             var incoming = new Vector3[points.Length];
             var outgoing = new Vector3[points.Length];
