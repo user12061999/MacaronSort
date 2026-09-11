@@ -66,6 +66,8 @@ namespace BlockShooter.Editor
 
         private static void ConfigureProps(MacaronFactory factory)
         {
+            factory.cartonDeliveryPrefab = AssetDatabase.LoadAssetAtPath<CandyBlast.Cartoon.CartonDeliverySequence>(
+                "Assets/MacaronFactory/Prefabs/CartonDelivery.prefab");
             CreateTrayPrefab("2x4");
             CreateTrayPrefab("1x4");
             int[] colors = { 2, 4, 3, 6, 7, 1 };

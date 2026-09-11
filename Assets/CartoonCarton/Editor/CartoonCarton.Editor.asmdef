@@ -1,0 +1,1 @@
+{"name":"CartoonCarton.Editor","references":["CartoonCarton.Runtime","CartoonCarton.Demo"],"includePlatforms":["Editor"],"autoReferenced":true}

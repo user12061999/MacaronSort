@@ -114,3 +114,21 @@ Chưa chạy test hoặc Play Mode theo yêu cầu; đường giải trên đư�
 Đã bỏ `Tray Prefab`, `Tray Prefabs`, `Tray Edge Gap` cùng code bố trí khay theo công thức cũ. Khay đặt trực tiếp trong prefab level. `Columns`, `Row Spacing`, `Lane Spacing`, `Exit Zone Length`, `Stop Before Exit` chỉ chỉnh tại `MacaronLevel`; Factory đọc cấu hình đó và tự tính khoảng cách làn thực tế theo kích thước bánh.
 
 Factory giữ các tham chiếu conveyor/level/bánh, scale bánh, tốc độ và nhịp tăng tốc, animation bánh/khay, độ tối khay bị che, Stage Override và cân bằng coin/thua. `Macaron Exit Speed` vẫn cần khi `Macaron Exit Time=0`; không phải biến thừa. Các thông số animation và cấu hình level đã lưu được giữ nguyên.
+
+## Đóng khay vào carton
+
+Khi bánh cuối cùng đáp xuống, khay nảy xong rồi được đóng vào carton: hộp bay tới → cả khay cùng bánh nhảy vào → đóng nắp → hộp bay đi. Ô chờ chỉ được giải phóng và số khay shipped chỉ tăng sau khi animation hoàn tất. Mỗi khay đầy có sequence đóng hộp riêng, chạy đồng thời mà không chờ hộp trước gửi xong; các ô khác vẫn nhận bánh bình thường. Pause dừng cả animation đóng hộp.
+
+Scene đã gắn `Prefabs/CartonDelivery.prefab` tại **MacaronFactory > Carton shipping > Carton Delivery Prefab**. `Carton Dock Offset` chỉnh vị trí đáy hộp so với khay (mặc định X=0, Y=0, Z=-1,2: hộp nằm phía Z âm của khay, cùng độ cao). Kích thước hộp tự theo bounds khay và bánh, hỗ trợ cả 1×4 và 2×4.
+
+Mở prefab carton để chỉnh component **Carton Delivery Sequence**: `Arrival Duration` (0,25s), `Settle Duration` (0,1s), `Cake Jump Duration` (0,35s — thời gian cả khay nhảy vào hộp), `Close Duration` (0,3s), `Anticipation Duration` (0,1s), `Departure Duration` (0,45s). `Cake Jump Height`, `Packing Scale`, `Squash`, `Tilt`, `Entry Position` và `Exit Position` điều khiển chuyển động. Entry/Exit tính tương đối với vị trí khay. Giữ `Play On Start` và `Use Unscaled Time` tắt; runtime truyền vị trí dock và khay, nên `Cakes`, `Cake Stagger` không cần chỉnh.
+
+Game sử dụng bản sao mesh của khay/bánh, giữ material và màu riêng, không đưa component gameplay/collider vào animation. Proxy được ẩn trước khi dọn sequence để tránh `ResetSequence` làm khay hiện lại. Material `Prefabs/FactoryCardboard.mat` được sao từ material URP của package. Trong `CartonDeliverySequence`, số cột được giới hạn theo số vật thể để một khay dài luôn được đặt giữa hộp.
+
+Đã import/compile; chưa chạy test hoặc Play Mode.
+
+### Đường nhảy vào hộp và độ lệch điểm đến
+
+Khay nâng lên cao hơn miệng hộp (có cộng kích thước visual và `Cake Jump Height`), di chuyển qua phía trên miệng hộp rồi hạ thẳng vào trong. Scale và rotation đóng gói hoàn tất trước đoạn hạ xuống để tránh xuyên thành hộp. `Cake Jump Duration` điều khiển tổng thời gian ba đoạn.
+
+`MacaronFactory > Carton Dock Random Range`: biên độ ngẫu nhiên theo X/Z (hai giá trị trong Vector2), mặc định ±0,2 theo X và ±0,25 theo Z, cộng vào `Carton Dock Offset`. Mỗi hộp lấy một điểm cố định khi bắt đầu boxing; Y không đổi. Đặt cả hai bằng 0 để tắt random. Các khay đầy vẫn boxing đồng thời.

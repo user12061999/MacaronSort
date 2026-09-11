@@ -1,0 +1,128 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1814897202196793950
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5798161092614116427}
+  - component: {fileID: 6085156425464080877}
+  m_Layer: 0
+  m_Name: Carton Visual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5798161092614116427
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1814897202196793950}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.8, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6132170133615786546}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6085156425464080877
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1814897202196793950}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d41855c5cc6cd403abcd3390ce8a3325, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  length: 2.4
+  width: 1.8
+  height: 1.3
+  thickness: 0.035
+  cardboardMaterial: {fileID: 2100000, guid: 4d97b8a825b994dd19adea5be8f97028, type: 2}
+  openness: 1
+  openAngle: 125
+  duration: 0.8
+  openOnStart: 0
+  loopDemo: 0
+  holdDuration: 1
+--- !u!1 &2527537910128708371
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6132170133615786546}
+  - component: {fileID: 843144853824747313}
+  m_Layer: 0
+  m_Name: CartonDelivery
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6132170133615786546
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2527537910128708371}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 5798161092614116427}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &843144853824747313
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2527537910128708371}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d602cd9bfd99046e985f23221b41dc57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  carton: {fileID: 6085156425464080877}
+  cakes: []
+  entryPosition: {x: -6, y: 3, z: 0}
+  dockPosition: {x: 1.8, y: 0, z: 0}
+  exitPosition: {x: 8, y: 4, z: 0}
+  flightArc: 1.2
+  arrivalDuration: 0.75
+  settleDuration: 0.35
+  cakeJumpDuration: 0.65
+  cakeStagger: 0.12
+  closeDuration: 0.65
+  anticipationDuration: 0.25
+  departureDuration: 0.65
+  squash: 0.18
+  tilt: 16
+  cakeJumpHeight: 2.4
+  cakeSpinTurns: 0.25
+  packingScale: 0.48
+  playOnStart: 0
+  useUnscaledTime: 0
+  onPacked:
+    m_PersistentCalls:
+      m_Calls: []
+  onCompleted:
+    m_PersistentCalls:
+      m_Calls: []

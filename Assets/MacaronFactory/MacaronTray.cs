@@ -177,7 +177,9 @@ namespace BlockShooter
                 .OnComplete(() => transform.localScale = _receiveRestScale);
         }
 
-        private void OnDisable()
+        private void OnDisable() => StopReceiveBounce();
+
+        public void StopReceiveBounce()
         {
             if (_receiveBounce == null || !_receiveBounce.IsActive()) return;
             _receiveBounce.Kill();

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using CandyBlast.Cartoon;
 using DG.Tweening;
 using TMPro;
 using UnityEngine;
@@ -67,6 +68,12 @@ namespace BlockShooter
         [Header("Covered tray appearance")]
         [Tooltip("Black tint applied only while another tray blocks this tray. 0 keeps the original color.")]
         [Range(0, 1)] public float coveredTrayDarkness = .18f;
+        [Header("Carton shipping")]
+        public CartonDeliverySequence cartonDeliveryPrefab;
+        [Tooltip("Box bottom relative to the full tray's position, in world units.")]
+        public Vector3 cartonDockOffset = new(0, 0, -1.2f);
+        [Tooltip("Random dock offset on X/Z, sampled once per box. Y stays unchanged.")]
+        public Vector2 cartonDockRandomRange = new(.2f, .25f);
         [Header("Balance")]
         [Min(0)] public int stageOverride;
         [Min(1)] public int unlockSlotCost = 100;
@@ -120,10 +127,11 @@ namespace BlockShooter
             Stage = _requestedStage > 0 ? _requestedStage : stageOverride > 0 ? stageOverride : Mathf.Max(1, PlayerPrefs.GetInt("Macaron.Stage", 1));
             _requestedStage = 0;
             if (conveyorSource == null || conveyorSource.conveyorController == null || GameManager.Instance.config == null ||
+                cartonDeliveryPrefab == null || cartonDeliveryPrefab.Carton == null ||
                 levels == null || levels.Length == 0 || levels.Any(level => level == null) ||
                 macaronPrefabs == null || macaronPrefabs.Length != Palette.Length || macaronPrefabs.Any(p => p == null))
             {
-                Debug.LogError("Macaron Factory needs its conveyor, authored levels and six macaron prefabs.");
+                Debug.LogError("Macaron Factory needs its conveyor, authored levels, carton delivery and six macaron prefabs.");
                 enabled = false;
                 return;
             }
@@ -375,18 +383,71 @@ namespace BlockShooter
         private IEnumerator Ship(MacaronTray tray)
         {
             tray.Shipping = true;
-            tray.Refresh(false);
             tray.Label.text = "PACKED!";
-            tray.Lid.localPosition = tray.ClosedLidPosition + Vector3.up * .6f;
-            yield return tray.Lid.DOLocalMove(tray.ClosedLidPosition, .2f).SetLink(tray.gameObject).WaitForCompletion();
-            yield return tray.transform.DOMoveX(7, .5f).SetEase(Ease.InBack)
-                .SetLink(tray.gameObject).WaitForCompletion();
+            yield return new WaitForSeconds(Mathf.Max(.01f, trayReceiveBounceTime));
+            CartonDeliverySequence delivery = null;
+            GameObject proxy = null;
+            bool completed = false;
+            try
+            {
+                tray.StopReceiveBounce();
+                proxy = new GameObject("Packed tray visual");
+                proxy.transform.SetParent(transform, false);
+                var bounds = CopyTrayVisual(tray, proxy.transform);
+                delivery = Instantiate(cartonDeliveryPrefab, tray.transform.position, Quaternion.identity, transform);
+                delivery.Carton.SetDimensions(bounds.size.x * 1.3f, bounds.size.z * 1.3f,
+                    Mathf.Max(.3f, bounds.size.y * 2));
+                delivery.OnCompleted.AddListener(() => completed = true);
+                var dockJitter = new Vector3(Random.Range(-Mathf.Abs(cartonDockRandomRange.x), Mathf.Abs(cartonDockRandomRange.x)), 0,
+                    Random.Range(-Mathf.Abs(cartonDockRandomRange.y), Mathf.Abs(cartonDockRandomRange.y)));
+                delivery.PlayAt(tray.transform.position + cartonDockOffset + dockJitter, new[] { proxy.transform });
+                if (!delivery.IsPlaying) throw new System.InvalidOperationException("Carton delivery could not start.");
+                tray.gameObject.SetActive(false);
+                while (delivery != null && delivery.isActiveAndEnabled && delivery.IsPlaying) yield return null;
+                if (!completed) throw new System.InvalidOperationException("Carton delivery stopped before shipping completed.");
+            }
+            finally
+            {
+                // ResetSequence restores supplied visuals; hide them before disabling the carton.
+                if (proxy != null) { proxy.SetActive(false); Destroy(proxy); }
+                if (delivery != null) { delivery.gameObject.SetActive(false); Destroy(delivery.gameObject); }
+                if (!completed && tray != null) tray.gameObject.SetActive(true);
+            }
             int slot = System.Array.IndexOf(_slots, tray);
             if (slot >= 0) _slots[slot] = null;
             _shipped++;
             tray.gameObject.SetActive(false);
             UpdateHud();
             CheckCompletion();
+        }
+
+        private static Bounds CopyTrayVisual(MacaronTray tray, Transform parent)
+        {
+            var renderers = tray.GetComponentsInChildren<MeshRenderer>()
+                .Where(r => r.enabled && r.GetComponent<TMP_Text>() == null && r.GetComponent<MeshFilter>() != null).ToArray();
+            UnityEngine.Assertions.Assert.IsTrue(renderers.Length > 0, "A packed tray needs visible meshes.");
+            var bounds = renderers[0].bounds;
+            foreach (var source in renderers) bounds.Encapsulate(source.bounds);
+            parent.position = bounds.center;
+            var properties = new MaterialPropertyBlock();
+            foreach (var source in renderers)
+            {
+                var copy = new GameObject(source.name, typeof(MeshFilter), typeof(MeshRenderer));
+                copy.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+                copy.transform.localScale = source.transform.lossyScale;
+                copy.transform.SetParent(parent, true);
+                copy.GetComponent<MeshFilter>().sharedMesh = source.GetComponent<MeshFilter>().sharedMesh;
+                var renderer = copy.GetComponent<MeshRenderer>();
+                renderer.sharedMaterials = source.sharedMaterials;
+                source.GetPropertyBlock(properties);
+                renderer.SetPropertyBlock(properties);
+                for (int i = 0; i < source.sharedMaterials.Length; i++)
+                {
+                    source.GetPropertyBlock(properties, i);
+                    renderer.SetPropertyBlock(properties, i);
+                }
+            }
+            return bounds;
         }
 
         public void RefreshAccessibility()

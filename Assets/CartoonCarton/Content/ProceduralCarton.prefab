@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6996201351833817388
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1620283396787235698}
+  - component: {fileID: 8159820054376009441}
+  - component: {fileID: 2954563093360534995}
+  m_Layer: 0
+  m_Name: ProceduralCarton
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1620283396787235698
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6996201351833817388}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8159820054376009441
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6996201351833817388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d41855c5cc6cd403abcd3390ce8a3325, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  length: 2.4
+  width: 1.7
+  height: 1.5
+  thickness: 0.035
+  cardboardMaterial: {fileID: 2100000, guid: 7cd97052575ad4edfa0344caad568c0d, type: 2}
+  openness: 1
+  openAngle: 125
+  duration: 0.8
+  openOnStart: 0
+  loopDemo: 0
+  holdDuration: 1
+--- !u!114 &2954563093360534995
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6996201351833817388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42ae3101c69f54bd38e3399c36ed0bb6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  localExitOffset: {x: 4, y: 0, z: 0}
+  moveDuration: 0.45
+  playOnStart: 0
