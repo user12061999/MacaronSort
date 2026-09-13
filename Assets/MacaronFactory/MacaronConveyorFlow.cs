@@ -25,6 +25,9 @@ namespace BlockShooter
         private readonly float _entryStraightLength;
         private readonly float[] _entryPhase;
         private float _progress;
+        private readonly MacaronLoopFlow _loop;
+        public bool IsLoop => _loop != null;
+        public bool HasReachableMatch(Predicate<ConveyorBlock3D> match) => _loop != null && _loop.HasReachableMatch(match);
 
         public IReadOnlyList<ConveyorBlock3D[]> Rows => _rows;
         public IReadOnlyList<ConveyorBlock3D> PickupBlocks => _pickupBlocks;
@@ -33,7 +36,8 @@ namespace BlockShooter
 
         public MacaronConveyorFlow(ConveyorController conveyor, List<ConveyorBlock3D[]> rows,
             List<BlockGroup> groups, float rowSpacing, float initialFrontT, float laneSpacing,
-            int lanes, float cakeDiameter)
+            int lanes, float cakeDiameter, ConveyorJunction[] feeders = null,
+            float loopSpacingMultiplier = 1, float feederSpacingMultiplier = 1)
         {
             _conveyor = conveyor;
             _rows = rows;
@@ -41,6 +45,12 @@ namespace BlockShooter
             _lanes = lanes;
             // A small chord allowance keeps round cakes clear on the authored broad bends.
             _rowSpacing = Mathf.Max(rowSpacing, cakeDiameter * 1.08f + .015f);
+            if (conveyor.SplineContainer.Spline.Closed)
+            {
+                _loop = new MacaronLoopFlow(conveyor, rows, groups, feeders ?? Array.Empty<ConveyorJunction>(), _rowSpacing, laneSpacing, lanes, cakeDiameter,
+                    loopSpacingMultiplier, feederSpacingMultiplier);
+                return;
+            }
             int samples = Mathf.Clamp(Mathf.CeilToInt(conveyor.SplineWorldLength / .015f), 32, 4096);
             int paths = lanes * 2 - 1; // Include centered offsets for an incomplete final row.
             _lanePoints = new Vector3[paths][];
@@ -120,14 +130,13 @@ namespace BlockShooter
             }
         }
 
-        public bool LeadingRowMatches(Predicate<ConveyorBlock3D> canCollect)
-        {
-            var row = _rows.Find(items => items.Any(block => block != null && !block.IsDestroyed));
-            return row != null && row.Any(block => block != null && !block.IsDestroyed && !block.IsTargeted && canCollect(block));
-        }
-
         public void Tick(float speed, float exitZoneLength, float stopBeforeExitDistance)
         {
+            if (_loop != null)
+            {
+                LeadingRow = _loop.Tick(speed, exitZoneLength, _pickupBlocks);
+                return;
+            }
             LeadingRow = _rows.FindIndex(row => row.Any(block => block != null && !block.IsDestroyed));
             _pickupBlocks.Clear();
             IsStoppedAtExit = false;

@@ -31,11 +31,6 @@ namespace BlockShooter
         [Header("Conveyor flow")]
         [Tooltip("World units per second used to move rows toward the endpoint of the conveyor.")]
         [Min(.1f)] public float conveyorSpeed = 1.2f;
-        [Tooltip("Conveyor speed multiplier while the leading row matches an available waiting tray.")]
-        [Min(1)] public float matchingConveyorMultiplier = 2.5f;
-        [Tooltip("Seconds to transition between normal movement and automatic packing speed.")]
-        [Min(.01f)] public float matchingSpeedTransition = .15f;
-        private float _matchingSpeed = 1;
         private float exitZoneLength => _layout.exitZoneLength;
         public float stopBeforeExitDistance => _layout.stopBeforeExit;
         [Header("Macaron exit")]
@@ -224,6 +219,18 @@ namespace BlockShooter
             belt.railHeight = .18f;
             belt.wallAboveBelt = .045f;
             belt.openZoneEnabled = false;
+            if (_layout.conveyorPath.Spline.Closed)
+            {
+                var authored = _layout.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
+                belt.closeBottom = authored.closeBottom;
+                authored.beltHalfWidth = belt.beltHalfWidth;
+                foreach (var branch in _layout.feederBranches)
+                {
+                    branch.Branch.beltHalfWidth = belt.beltHalfWidth;
+                    branch.SyncJunction();
+                }
+                belt.openings = new List<ConveyorOpening>(authored.openings);
+            }
             belt.BuildMesh();
             Level.SpawnBlocksRuntime();
             conveyor.Initialize();
@@ -256,7 +263,9 @@ namespace BlockShooter
             float stopT = Mathf.Clamp01(1 - stopBeforeExitDistance / conveyor.SplineWorldLength);
             float initialFrontT = stopT * .5f;
             _conveyorFlow = new MacaronConveyorFlow(conveyor, rows, rowGroups, rowSpacing,
-                initialFrontT, laneSpacing, maxRowWidth, cakeDiameter);
+                _layout.conveyorPath.Spline.Closed ? 0 : initialFrontT, laneSpacing, maxRowWidth, cakeDiameter,
+                _layout.conveyorPath.Spline.Closed ? _layout.feederBranches : null,
+                _layout.loopSpacingMultiplier, _layout.feederSpacingMultiplier);
             _remaining = colors.Count;
         }
 
@@ -265,14 +274,16 @@ namespace BlockShooter
             if (!_ready || !GameManager.Instance.IsPlaying) return;
             var conveyor = Level.conveyorController;
             if (conveyor.IsFrozen) return;
-            bool packing = _transfers > 0 || _conveyorFlow.LeadingRowMatches(block =>
-                _slots.Any(tray => tray != null && tray.CanReceive && tray.Color == block.ColorType));
-            float fast = Mathf.Max(1, matchingConveyorMultiplier);
-            _matchingSpeed = Mathf.MoveTowards(_matchingSpeed, packing ? fast : 1,
-                Mathf.Max(.01f, fast - 1) * Time.deltaTime / Mathf.Max(.01f, matchingSpeedTransition));
-            _conveyorFlow.Tick(conveyorSpeed * _speedMultiplier * _matchingSpeed, exitZoneLength, stopBeforeExitDistance);
+            _conveyorFlow.Tick(conveyorSpeed * _speedMultiplier, exitZoneLength, stopBeforeExitDistance);
+            if (_layout.collectionGate != null)
+            {
+                bool receiving = _transfers > 0 || PickupBlocks.Any(block =>
+                    _slots.Any(tray => tray != null && tray.CanReceive && tray.Color == block.ColorType));
+                if (receiving) _layout.collectionGate.Open(); else _layout.collectionGate.Close();
+            }
             foreach (var block in PickupBlocks)
             {
+                if (_layout.collectionGate != null && !_layout.collectionGate.IsOpen) break;
                 if (Time.time < _nextMacaronLaunchTime) break;
                 foreach (var tray in _slots)
                 {
@@ -465,6 +476,8 @@ namespace BlockShooter
         {
             if (!_ready || !GameManager.Instance.IsPlaying || IsBusy || _remaining == 0) return false;
             for (int i = 0; i < OpenSlots; i++) if (_slots[i] == null) return false;
+            if (_conveyorFlow.IsLoop) return !_conveyorFlow.HasReachableMatch(block =>
+                _slots.Take(OpenSlots).Any(tray => tray.Color == block.ColorType && tray.CanReceive));
             // Only cakes in the leading row at the conveyor endpoint count.
             var incoming = PickupBlocks;
             bool hasIncoming = false;

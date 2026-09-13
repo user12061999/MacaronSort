@@ -12,7 +12,16 @@ namespace BlockShooter.Editor
     {
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            MacaronLevelPreview.Watch((MacaronLevel)target);
+            bool preview = EditorGUILayout.Toggle("Auto scene / game preview", MacaronLevelPreview.Enabled);
+            if (preview != MacaronLevelPreview.Enabled)
+            {
+                MacaronLevelPreview.Enabled = preview;
+                if (!preview) MacaronLevelPreview.Clear(); else MacaronLevelPreview.Refresh();
+            }
+            if (DrawDefaultInspector()) MacaronLevelPreview.Refresh();
+            EditorGUILayout.HelpBox("Edit Mode preview refreshes automatically. It shows layout, cake spacing and camera without playing the game. Turn it off before viewing other scenes. Runtime changes during Play Mode are not copied back to the prefab.", MessageType.Info);
+            if (!string.IsNullOrEmpty(MacaronLevelPreview.Error)) EditorGUILayout.HelpBox(MacaronLevelPreview.Error, MessageType.Warning);
             EditorGUILayout.HelpBox("Edit this prefab in Prefab Mode. Move/rotate children under Trays. Each tray stores its color, stack layer and mystery flag. Enable Use Custom Macaron Order to author supply independently; batches are read top to bottom. Otherwise sibling order breaks ties. Edit Conveyor Path with Unity's Spline tool.", MessageType.Info);
             var selected = (MacaronLevel)target;
             if (selected.useCustomMacaronOrder && selected.trayRoot != null)
@@ -24,28 +33,10 @@ namespace BlockShooter.Editor
                 }
                 catch (System.Exception error) { EditorGUILayout.HelpBox(error.Message, MessageType.Error); }
             }
-            if (GUILayout.Button("Rebuild conveyor preview"))
-            {
-                var level = (MacaronLevel)target;
-                Undo.RecordObject(level.conveyorPath, "Center conveyor exit");
-                level.AlignExitToWaitingSlots();
-                var builder = level.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
-                Undo.RecordObject(builder, "Resize conveyor preview");
-                builder.beltHalfWidth = level.laneSpacing * (level.columns - 1) * .5f + .16f;
-                builder.BuildMesh();
-                // Save a private mesh for this level so other level previews are not overwritten.
-                string path = AssetDatabase.GetAssetPath(level);
-                if (string.IsNullOrEmpty(path)) path = PrefabStageUtility.GetCurrentPrefabStage()?.assetPath;
-                if (!string.IsNullOrEmpty(path))
-                {
-                    string meshPath = System.IO.Path.ChangeExtension(path, null) + "_Track.asset";
-                    var mesh = builder.GetComponent<MeshFilter>().sharedMesh;
-                    var existing = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
-                    if (existing == null) AssetDatabase.CreateAsset(mesh, meshPath);
-                    else { EditorUtility.CopySerialized(mesh, existing); builder.GetComponent<MeshFilter>().sharedMesh = existing; }
-                }
-                EditorSceneManager.MarkSceneDirty(level.gameObject.scene);
-            }
+            if (GUILayout.Button("Refresh scene / game preview")) MacaronLevelPreview.Refresh();
+            if (GUILayout.Button("Focus preview in Scene")) MacaronLevelPreview.Focus();
+            EditorGUILayout.Space();
+            MacaronLevelGenerator.Draw(selected);
         }
     }
 

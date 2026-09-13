@@ -70,7 +70,7 @@ Chỉnh sửa lần này được lưu trực tiếp vào hai prefab level và s
 
 ## Tăng tốc khi đóng khay
 
-`Matching Conveyor Multiplier` (mặc định 2,5) tăng tốc khi hàng đầu có màu khớp khay đang chờ còn chỗ, hoặc đang có bánh bay vào khay. `Matching Speed Transition` (mặc định 0,15 giây) làm mượt chuyển tốc độ. Khay đang di chuyển, đang gửi đi hoặc đã đầy tính cả chỗ được giữ trước không kích hoạt tăng tốc. Hết màu khớp thì trở về tốc độ thường. Hệ số này nhân với tốc độ x1/x2 trên HUD; đặt 1 để tắt tăng tốc tự động. Điểm dừng và điều kiện thua giữ nguyên.
+Băng chuyền chạy theo `Conveyor Speed` và nút x1/x2 trên HUD. Đã bỏ tăng tốc tự động khi khớp màu hoặc khi bánh bay vào khay, cùng hai biến `Matching Conveyor Multiplier` / `Matching Speed Transition`.
 
 Chỉ hàng đầu được nhận. Trong hàng đó, bánh đủ điều kiện gần đầu ra hơn được xét trước; bánh xuất phát lần lượt theo `Macaron Launch Interval`, không phải đợi bánh trước đáp xuống. Thời gian bay vẫn do `Macaron Exit Time` / `Macaron Exit Speed` điều khiển riêng.
 
@@ -113,7 +113,7 @@ Chưa chạy test hoặc Play Mode theo yêu cầu; đường giải trên đư�
 
 Đã bỏ `Tray Prefab`, `Tray Prefabs`, `Tray Edge Gap` cùng code bố trí khay theo công thức cũ. Khay đặt trực tiếp trong prefab level. `Columns`, `Row Spacing`, `Lane Spacing`, `Exit Zone Length`, `Stop Before Exit` chỉ chỉnh tại `MacaronLevel`; Factory đọc cấu hình đó và tự tính khoảng cách làn thực tế theo kích thước bánh.
 
-Factory giữ các tham chiếu conveyor/level/bánh, scale bánh, tốc độ và nhịp tăng tốc, animation bánh/khay, độ tối khay bị che, Stage Override và cân bằng coin/thua. `Macaron Exit Speed` vẫn cần khi `Macaron Exit Time=0`; không phải biến thừa. Các thông số animation và cấu hình level đã lưu được giữ nguyên.
+Factory giữ các tham chiếu conveyor/level/bánh, scale bánh, tốc độ băng chuyền, animation bánh/khay, độ tối khay bị che, Stage Override và cân bằng coin/thua. `Macaron Exit Speed` vẫn cần khi `Macaron Exit Time=0`; không phải biến thừa. Các thông số animation và cấu hình level đã lưu được giữ nguyên.
 
 ## Đóng khay vào carton
 
@@ -132,3 +132,72 @@ Game sử dụng bản sao mesh của khay/bánh, giữ material và màu riêng
 Khay nâng lên cao hơn miệng hộp (có cộng kích thước visual và `Cake Jump Height`), di chuyển qua phía trên miệng hộp rồi hạ thẳng vào trong. Scale và rotation đóng gói hoàn tất trước đoạn hạ xuống để tránh xuyên thành hộp. `Cake Jump Duration` điều khiển tổng thời gian ba đoạn.
 
 `MacaronFactory > Carton Dock Random Range`: biên độ ngẫu nhiên theo X/Z (hai giá trị trong Vector2), mặc định ±0,2 theo X và ±0,25 theo Z, cộng vào `Carton Dock Offset`. Mỗi hộp lấy một điểm cố định khi bắt đầu boxing; Y không đổi. Đặt cả hai bằng 0 để tắt random. Các khay đầy vẫn boxing đồng thời.
+
+## Level 4 — Junction Loop (quay liên tục)
+
+`Levels/Level_04_JunctionLoop.prefab`: vòng giữa quay liên tục, hai nhánh cong cấp bánh, 2 cột, **96 bánh / 12 khay 2×4**. Sáu màu có 16 bánh và hai khay mỗi màu. Khay xếp sát thành 3 cột × 4 hàng. Supply gồm 24 cụm, mỗi cụm 4 bánh, lặp Red/Green/Blue/Yellow/Purple/Orange bốn lần.
+
+Vòng bắt đầu với 100% vị trí hàng có bánh, không chừa ngẫu nhiên 10% vị trí trống. Nếu supply ít hơn sức chứa tính từ spacing, số vị trí được giới hạn theo supply và chia đều quanh vòng; không tạo thêm bánh ngoài config. Phần supply còn lại chia luân phiên sang hai nhánh. Khi một vị trí hàng trống đi qua junction, nhánh có bánh chờ giữ vị trí đó và đưa hàng bánh vào. Vị trí chỉ trống khi mọi bánh trong hàng đã được lấy. Đầu nhánh dừng ngoài miệng nối khi chưa có chỗ; vòng giữa vẫn chạy. Khoảng cách trên vòng tính theo lane phía trong để hạn chế chèn bánh ở cua.
+
+Cổng thu nằm giữa cạnh dưới, sát Waiting Slots, tại T=0/1 và luôn để trống. Đã xóa GameObject Collection gate - waiting slots, giữ opening trên thành vòng. Bánh bay lần lượt theo Macaron Launch Interval khi có khay khớp màu. Chỉ hàng gần cửa nhất trong vùng thu được xét; bánh không khớp tiếp tục quay lại vòng sau. Không dừng trước endpoint như các level băng chuyền mở.
+
+Khi mọi ô chờ đang mở đều bận, chỉ xét thua nếu không còn bánh khớp có thể tới cửa: kiểm tra toàn bộ bánh trên vòng, và chờ nhánh cấp thêm nếu vòng còn vị trí trống. Không báo thua chỉ vì một hàng không khớp vừa đi qua. Pause dừng cả vòng và nhánh; boxing giữ cơ chế hiện tại.
+
+Chỉnh Conveyor Path và hai feeder bằng spline. Đầu cuối mỗi nhánh (Join At=End) phải nằm trên đường tâm vòng. Level này dùng nhánh thẳng vuông góc với đoạn thành thẳng để miệng nối khớp mép; chuyển động nhập vòng được blend. Sync Junction cập nhật miệng nối/mesh; runtime đồng bộ độ rộng theo scale bánh. Giữ cửa thu ở đường nối T=0/1 và các junction ngoài vùng cửa. Collection Gate để trống cho level này. Badge đếm bánh đã chuyển vào tâm vòng.
+
+MacaronLoopFlow quản lý vòng và hàng đợi cấp bánh riêng; MacaronConveyorFlow giữ cơ chế cũ cho level mở. Menu Create Junction Loop Level chỉ tạo khi asset chưa có, không ghi đè level đã chỉnh. Stage Override=4 để xem màn này; đặt 0 để dùng tiến độ lưu.
+
+Đã kiểm tra cấu hình và compile. Chưa chạy test hoặc Play Mode; chuyển động và độ khó chưa được chơi xác nhận.
+
+Khoảng cách bánh trên vòng đã giảm phần đệm từ 12% + 0,015 xuống 2% + 0,005 đơn vị, vẫn tính theo lane trong ở cua. Hai nhánh dùng khoảng cách hàng riêng, không còn dùng khoảng cách lớn của vòng. Row Spacing của level vẫn là giới hạn tối thiểu. Chưa chạy test hoặc Play Mode để xác nhận hình ảnh.
+
+### Config khoảng cách bánh
+
+Mở prefab Level_04_JunctionLoop, chọn component MacaronLevel > Loop cake spacing:
+- Loop Spacing Multiplier: hệ số khoảng cách hàng trên vòng, hiện 0,9. Giảm về 0,85 hoặc 0,8 để sát hơn; 1 là khoảng cách tự tính theo góc cua.
+- Feeder Spacing Multiplier: hệ số riêng cho hai nhánh, hiện 0,9.
+
+Giá trị áp dụng khi mở lại level/Retry. Vòng chia thành số vị trí nguyên nên thay đổi rất nhỏ có thể chưa tăng số hàng. Hệ số thấp có thể khiến bánh chạm/chồng ở cua; đây là điều chỉnh trực tiếp, không bị clamp ngược về khoảng cách tự động. Lane Spacing vẫn chỉnh khoảng cách ngang giữa các cột (runtime có mức tối thiểu theo kích thước bánh).
+
+12 khay đã được xếp lại theo kích thước collider, khe giữa hai khay khoảng 0,025 đơn vị theo cả X/Z. Hai nhánh đã được chỉnh thẳng và Sync Junction lại, không dùng khoảng overlap âm ở chỗ nối. Chưa chạy test hoặc Play Mode để xác nhận hình ảnh.
+### Auto Scene / Game preview trong Edit Mode
+
+Chọn MacaronLevel (asset prefab hoặc root trong Prefab Mode), bật `Auto scene / game preview` ở đầu Inspector. Sửa thông số sẽ cập nhật bản xem trước sau khoảng 0,3 giây: chiều rộng/cột bánh, khoảng cách vòng/nhánh, supply màu, bố cục khay và camera. Undo/Redo và chỉnh spline/transform khay cũng cập nhật. Game view dùng camera preview riêng; nút `Focus preview in Scene` đưa Scene view tới bản xem trước trong scene chính. Khi đang ở Prefab Mode, Game view vẫn dùng bản preview ở scene chính; thoát Prefab Mode để focus bản đó trong Scene view.
+
+Preview là bản bố cục tĩnh ở Edit Mode, không chạy gameplay/animation hay thay đổi tiến độ. Bánh vòng dùng chung sampler và công thức sức chứa của MacaronLoopFlow; level mở hiển thị bố trí mẫu trên spline. Prefab gốc vẫn lưu các biến bạn chỉnh theo quy trình Unity. Preview không được lưu vào scene/prefab và tự dọn trước khi vào Play Mode hoặc compile; tắt checkbox để trả Game view về camera scene. Lỗi cấu hình hiển thị ngay trong Inspector. Thay đổi trên instance runtime trong Play Mode không tự ghi ngược về asset.
+
+Đã sửa khe tại junction: branch trim theo `beltHalfWidth` thay vì `RimOffset`, vì opening đã bỏ cả bề dày thành. Nhánh nay kéo tới mép mặt belt, không còn dừng ở mép ngoài thành. Hai mesh nhánh và mesh vòng của Level 4 đã được rebuild/lưu lại.
+
+## Sinh level từ cấu hình Editor
+
+Menu `Tools > Macaron Factory > Open Level Generator` mở Inspector của level mẫu. Hoặc chọn MacaronLevel và mở mục `Generate new level` ở cuối Inspector.
+
+- `Level Name`, `Seed`: tên output và seed lặp lại kết quả kích thước/hướng khay, thứ tự trộn supply.
+- `Tray Count`: 1–48 khay; `Color Count`: 1–6 màu; `Large Tray Percent`: xác suất dùng khay 2×4, còn lại 1×4.
+- `Table Columns`, `Stack Layers`: bố trí ô khay và số lớp; `Mix Vertical Trays`: trộn khay dọc/ngang; `Mystery Under Stacks`: ẩn màu khay có lớp trên.
+- `Tray Scale`, `Tray Gap`: scale và khe giữa các ô. Khay được ghép theo footprint collider thực tế, lấp các khoảng trống còn vừa trên mỗi tầng. Các tầng dùng bố cục riêng, không phải cột khay thẳng hàng.
+- `Conveyor Columns`, `Loop Spacing Multiplier`, `Feeder Spacing Multiplier`: số cột bánh và khoảng cách. Camera và Waiting Slots lấy từ template; hình băng chuyền chọn chữ nhật hoặc tam giác.
+- `Shuffle Supply`: mặc định tắt, supply đi theo khay ở tầng trên trước. Bật sẽ xáo trộn cả batch khay. Tổng bánh mỗi màu luôn khớp tổng Pocket tương ứng; không có bộ giải chứng minh level luôn thắng được.
+- `Add To Factory`: thêm asset mới vào cuối Levels của scene hiện tại. `Select As Starting Stage`: chọn Stage Override của level mới nếu bật Add To Factory.
+
+Bấm `Generate, sau đó Save`. Output nằm trong `Assets/MacaronFactory/Levels/Generated/<tên>/`, gồm prefab và mesh riêng; tên trùng tự thêm hậu tố. Template không bị ghi đè. Editor tự chọn asset mới để xem/chỉnh tiếp với Auto Scene / Game preview. Cấu hình công cụ lưu riêng ở UserSettings/MacaronLevelGenerator.asset. Không tự sinh lại khi kéo thanh config; cần bấm nút Generate để tạo kết quả mới.
+
+Mặc định: 18 khay, 6 màu, 60% khay lớn, bàn 3 cột, 1 lớp, khe 0,025, băng chuyền 2 cột. Số bánh thực tế được báo sau khi sinh. Chưa chạy generator như một bài test hoặc chạy Play Mode.
+
+### Cấu hình băng chuyền rút gọn
+
+- `Conveyor Shape`: chỉ còn Rounded Rectangle (chữ nhật bo góc) và Triangle (tam giác bo góc, cạnh đáy hướng về Waiting Slots).
+- `Feeders`: số phần tử là số nhánh; đặt Size = 0 để không có feeder.
+- Mỗi feeder chỉ còn `Position` (0–1 dọc vòng, 0/1 ở giữa đáy) và `Length` (chiều dài nhánh). Nhánh luôn nối từ phía ngoài, vuông góc với đường tại vị trí chọn.
+- Bỏ random hình/kích thước/vị trí, góc tiếp cận, chọn phía, cầu vượt, số vòng xoắn và các hình khác. Seed vẫn dùng cho khay/supply.
+- Kích thước vòng và bán kính cua tự tính theo độ rộng belt; khi không có feeder, vòng tự mở rộng để chứa đủ supply. Các config khay, bánh, khoảng cách và hai nút Generate / Save vẫn giữ nguyên.
+- Số feeder, Position và Length đã lưu được giữ lại. Shape cũ không còn hỗ trợ được chuyển về chữ nhật khi mở generator. Prefab level đã lưu không bị thay đổi.
+### Generate và Save riêng
+
+Generate tạo bản nháp trong bộ nhớ và mở Auto Scene / Game preview, chưa tạo prefab/mesh asset hay thêm vào Factory. Save lưu đúng bản nháp hiện tại vào thư mục Generated; tùy chọn Add To Factory và Select As Starting Stage áp dụng lúc Save. Sau khi sửa config generator, bấm Generate lại để thay bản nháp. Có thể chỉnh MacaronLevel bản nháp rồi Save. Save bị khóa khi chưa có bản nháp hoặc sau khi đã lưu. Bản nháp chưa lưu bị bỏ khi compile/reload script, vào Play Mode hoặc đóng Unity.
+
+### Bán kính cua và khay xếp sát
+
+Corner Radius chỉnh bán kính đường tâm ở các góc băng chuyền. Giá trị nhỏ bị giới hạn trên nửa độ rộng belt 0,1 đơn vị để tránh gập mép trong; góc được giới hạn theo chiều dài cạnh. Vòng không feeder có thể được phóng lớn để đủ supply, làm bán kính cuối tăng theo.
+
+Khay xếp sát theo kích thước collider thật ở mỗi tầng, có tính tâm collider khi xoay. Mix Vertical Trays trộn ngang/dọc; Stack Layers chọn số tầng; Tray Gap chọn khe hở. Mystery Under Stacks dựa trên khay thực sự đè phía trên. Table Columns quyết định chiều rộng vùng xếp; số khay trong từng hàng thay đổi theo kích thước/hướng. Đây là thuật toán xếp gọn, không phải bộ giải tối ưu diện tích hay chứng minh level luôn thắng.
