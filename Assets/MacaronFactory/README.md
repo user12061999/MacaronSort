@@ -201,3 +201,24 @@ Generate tạo bản nháp trong bộ nhớ và mở Auto Scene / Game preview, 
 Corner Radius chỉnh bán kính đường tâm ở các góc băng chuyền. Giá trị nhỏ bị giới hạn trên nửa độ rộng belt 0,1 đơn vị để tránh gập mép trong; góc được giới hạn theo chiều dài cạnh. Vòng không feeder có thể được phóng lớn để đủ supply, làm bán kính cuối tăng theo.
 
 Khay xếp sát theo kích thước collider thật ở mỗi tầng, có tính tâm collider khi xoay. Mix Vertical Trays trộn ngang/dọc; Stack Layers chọn số tầng; Tray Gap chọn khe hở. Mystery Under Stacks dựa trên khay thực sự đè phía trên. Table Columns quyết định chiều rộng vùng xếp; số khay trong từng hàng thay đổi theo kích thước/hướng. Đây là thuật toán xếp gọn, không phải bộ giải tối ưu diện tích hay chứng minh level luôn thắng.
+
+### Feeder vượt mép màn hình
+Camera runtime và preview chỉ frame phần level chính, bỏ bounds feeder và nền Conveyor board. Các nhánh có thêm mesh nối thẳng vượt viewport 15%; mesh này tự cập nhật khi đổi kích thước màn hình. Đây là phần hình ảnh: giữ nguyên spline cấp bánh, hàng chờ và tốc độ. Muốn bánh hiện trên đoạn dài hơn, tăng Length của feeder rồi Generate / Save; camera không thu nhỏ theo chiều dài nhánh. Không chạy test hoặc Play Mode cho thay đổi này.
+
+### Khoảng cách từng làn trên vòng kín
+MacaronLoopFlow dùng chiều dài tích lũy riêng cho từng làn (gồm offset của hàng cuối chưa đầy). Ngoài đoạn thu bánh, mỗi làn cách đều theo cung riêng; không còn lấy góc cua hẹp nhất để giãn cả vòng. Các làn dùng cùng chu kỳ vòng nên khoảng cách/tốc độ dọc cung giữa làn trong và ngoài có thể khác nhau. Chúng căn lại hàng ở đoạn thẳng quanh seam. Vùng pickup bị giới hạn trong đoạn đã căn hàng; feeder vẫn đặt chỗ theo hàng và chỉ nhập vào hàng trống.
+Sức chứa dựa trên chiều dài làn ngắn nhất của đoạn chưa căn hàng, với giới hạn khoảng cách tối thiểu theo đường kính bánh. Khi supply ít hơn sức chứa, xếp các hàng liên tiếp và để phần vòng còn lại trống thay vì kéo giãn tất cả hàng. Runtime, preview và FitSupplyOnRing dùng cùng tính toán. Không chạy test hoặc Play Mode cho thay đổi này.
+
+
+### Chữ nhật bo mềm cho 4–5 cột
+Generator giữ bán kính mép trong của chữ nhật tối thiểu 0,5 đơn vị. Tăng Corner Radius sẽ làm góc mềm hơn; kích thước vòng chỉ tăng khi cần chứa góc và đoạn thẳng căn hàng, thay vì nhân chiều rộng/cao theo bán kính như trước. Các góc được phép chiếm gần nửa cạnh nhưng vẫn giữ ít nhất 0,7 đơn vị đoạn thẳng. Cần Generate lại để thay hình; prefab đã lưu không bị sửa tự động. Nếu supply ít hơn sức chứa, vẫn có phần vòng trống; sửa hình không tự thêm bánh.
+
+
+### Xếp bánh theo video 20260911-0528
+Vòng kín hiện chia vị trí riêng từng làn, với số vị trí theo chiều dài làn đó. Khoảng cách tâm bánh xấp xỉ cùng một bước (sai số nhỏ do chia tròn số vị trí), tốc độ theo đơn vị thế giới bằng nhau. Hàng được phép lệch tự nhiên qua cua thay vì kéo giãn làn ngoài để luôn có cùng số slot với làn trong. Khi mới nạp, xếp các hàng thành cụm liền; phần dư chiều dài ở làn ngoài có thể trống, không thêm bánh ngoài supply.
+Feeder vẫn chờ có vị trí trống ở tất cả các làn cần thiết trước khi nhận một hàng. Bánh được thu theo khoảng cách thực đến cổng trên từng làn, không ép cả hàng về chung góc. Như vậy hàng logic không còn luôn thẳng ngang khi quay hết một vòng. Hình spline, khay và camera không thay đổi. Preview và runtime cùng dùng chiều dài từng làn. Không chạy test hay Play Mode.
+
+
+### Chọn cách xếp bánh
+Independent Lane Packing có trong MacaronLevel > Loop cake spacing và trong Generator. Bật (mặc định): cách hiện tại theo video, số slot riêng từng làn. Tắt: cách ngay trước bản theo video, giữ hàng logic và căn hàng ở đoạn thẳng trước cổng. Runtime, preview và phép tính sức chứa đều dùng lựa chọn này. Đổi trực tiếp trên MacaronLevel sẽ cập nhật preview; đổi trong Generator cần Generate lại rồi Save. Khi đang chơi, đổi này áp dụng ở lần nạp level tiếp theo. Không ảnh hưởng hình dạng băng chuyền; chỉ dùng cho vòng kín. Không chạy test hoặc Play Mode.
+

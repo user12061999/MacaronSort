@@ -35,6 +35,8 @@ namespace BlockShooter.Editor
         [Range(0, .3f)] public float trayGap = .025f;
         [Range(1, 5)] public int conveyorColumns = 2;
         public ConveyorShape conveyorShape = ConveyorShape.RoundedRectangle;
+        [Tooltip("On: current video-style packing. Off: previous packing with rows aligned before collection.")]
+        public bool independentLanePacking = true;
         [Tooltip("Radius of the conveyor centreline corners. Kept above belt half-width to avoid folding the inner edge.")]
         [Min(.1f)] public float cornerRadius = 1f;
         [Tooltip("Each entry creates one feeder. Empty = no feeders. Position is along the loop; Length controls the feeder length.")]
@@ -263,6 +265,7 @@ namespace BlockShooter.Editor
                 level.macaronOrder = order.Select(t => new MacaronLevel.MacaronBatch { color = t.levelColor, count = t.pockets.Length }).ToArray();
                 level.columns = Mathf.Clamp(config.conveyorColumns, 1, 5);
                 level.loopSpacingMultiplier = config.loopSpacingMultiplier;
+                level.independentLanePacking = config.independentLanePacking;
                 level.feederSpacingMultiplier = config.feederSpacingMultiplier;
                 float diameter = factory.conveyorMacaronScale * factory.macaronPrefabs.Max(p => {
                     var b = p.GetComponent<Renderer>().localBounds;
@@ -344,9 +347,11 @@ namespace BlockShooter.Editor
         }
         private static void BuildConveyor(MacaronLevel level, MacaronGeneratorSettings config, float halfWidth)
         {
-            float radius = Mathf.Max(halfWidth + .1f, config.cornerRadius);
-            float width = Mathf.Max(1.85f, radius * 2);
-            float height = Mathf.Max(3.5f, radius * 3.5f);
+            bool rectangle = config.conveyorShape == ConveyorShape.RoundedRectangle;
+            // Leave a visible inner curve even when four/five lanes widen the belt.
+            float radius = Mathf.Max(halfWidth + (rectangle ? .5f : .1f), config.cornerRadius);
+            float width = rectangle ? Mathf.Max(1.85f, radius + .55f) : Mathf.Max(1.85f, radius * 2);
+            float height = rectangle ? Mathf.Max(3.5f, radius * 2 + .8f) : Mathf.Max(3.5f, radius * 3.5f);
             float centerX = level.waitingSlots.Average(t => level.transform.InverseTransformPoint(t.position).x);
             float bottom = level.waitingSlots.Max(t => level.transform.InverseTransformPoint(t.position).z) + halfWidth + .9f;
             float top = bottom + height;

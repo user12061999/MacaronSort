@@ -301,7 +301,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   conveyorSource: {fileID: 3106933310930561449, guid: 515137003caa54646adb1465f557790e, type: 3}
   levels:
-  - {fileID: 9067862713611801181, guid: 1a28680b25577c248a621f5805894253, type: 3}
+  - {fileID: 8962492105715170877, guid: 4208b286bfe758b46a51eab151e735f4, type: 3}
+  - {fileID: 8670259539492595232, guid: 1e7f57708c1c2a54fb338dc9c2ee9932, type: 3}
+  - {fileID: 8771080922117147080, guid: a408b63c445714649bae5b512fd9cbf8, type: 3}
   macaronPrefabs:
   - {fileID: 6649432844117656782, guid: fa3edb152a9942e4c888cb4bb0efb13c, type: 3}
   - {fileID: 8223698897166863487, guid: dfb37d26ec7ae2149b2e76c31329e749, type: 3}
@@ -311,7 +313,6 @@ MonoBehaviour:
   - {fileID: 6221063533694578287, guid: 564f6f32629207a47a5af229ddbc807d, type: 3}
   conveyorMacaronScale: 1.6
   conveyorSpeed: 2.4
-  macaronLaunchInterval: 0.1
   macaronExitTime: 0.6
   macaronExitCurve:
     serializedVersion: 2
@@ -374,9 +375,6 @@ MonoBehaviour:
   trayReceiveScaleMultiplier: 1.2
   trayReceiveBounceTime: 0.1
   coveredTrayDarkness: 0.18
-  cartonDeliveryPrefab: {fileID: 843144853824747313, guid: 96198253f8194f941a6a439246f70b03, type: 3}
-  cartonDockOffset: {x: 0, y: 0, z: -1.2}
-  cartonDockRandomRange: {x: 0.2, y: 0.25}
   stageOverride: 4
   unlockSlotCost: 100
   shippingReward: 50

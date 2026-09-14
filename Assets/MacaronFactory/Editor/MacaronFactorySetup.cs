@@ -66,8 +66,6 @@ namespace BlockShooter.Editor
 
         private static void ConfigureProps(MacaronFactory factory)
         {
-            factory.cartonDeliveryPrefab = AssetDatabase.LoadAssetAtPath<CandyBlast.Cartoon.CartonDeliverySequence>(
-                "Assets/MacaronFactory/Prefabs/CartonDelivery.prefab");
             CreateTrayPrefab("2x4");
             CreateTrayPrefab("1x4");
             int[] colors = { 2, 4, 3, 6, 7, 1 };
@@ -124,6 +122,11 @@ namespace BlockShooter.Editor
         [MenuItem("Tools/Macaron Factory/Run Checks")]
         public static void RunChecks()
         {
+            Check(MacaronLoopFlow.IsInPickupWindow(.8f, 1, 0, 10), "All rows inside the gate can be picked up, not just the nearest row");
+            Check(MacaronLoopFlow.IsInPickupWindow(9.8f, 1, .3f, 10), "A cake crossing the gate between frames must still be picked up");
+            Check(!MacaronLoopFlow.IsInPickupWindow(9.8f, 1, .1f, 10), "A cake that passed the gate earlier must wait for the next lap");
+            Check(!MacaronLoopFlow.IsInPickupWindow(2, 1, .3f, 10), "Cakes outside the gate must stay on the conveyor");
+            Check(!MacaronLoopFlow.IsInPickupWindow(0, 0, .3f, 10), "A disabled pickup zone must not collect");
             var rect = new Rect(0, 0, 2, 1);
             Check(MacaronTray.Blocks(new Rect(1.9f, .9f, 2, 1), 1, rect, 0), "Partial corner overlap blocks");
             Check(!MacaronTray.Blocks(rect, 0, rect, 0), "Same layer cannot block");

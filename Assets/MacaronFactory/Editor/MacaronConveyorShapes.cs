@@ -24,8 +24,10 @@ namespace BlockShooter.Editor
                 var inDirection = (corners[i] - previous).normalized;
                 var outDirection = (next - corners[i]).normalized;
                 float turn = Vector3.Angle(inDirection, outDirection) * Mathf.Deg2Rad;
-                float tangentDistance = Mathf.Min(radius * Mathf.Tan(turn * .5f),
-                    .4f * Mathf.Min(Vector3.Distance(corners[i], previous), Vector3.Distance(corners[i], next)));
+                float shortestEdge = Mathf.Min(Vector3.Distance(corners[i], previous), Vector3.Distance(corners[i], next));
+                // Rectangle corners may occupy almost half a side, retaining a straight at the gate.
+                float maxTrim = shape == ConveyorShape.RoundedRectangle ? shortestEdge * .5f - .35f : shortestEdge * .4f;
+                float tangentDistance = Mathf.Min(radius * Mathf.Tan(turn * .5f), maxTrim);
                 float actualRadius = tangentDistance / Mathf.Tan(turn * .5f);
                 float handle = 4f / 3 * actualRadius * Mathf.Tan(turn * .25f);
                 points.Add(corners[i] - inDirection * tangentDistance);

@@ -37,7 +37,7 @@ namespace BlockShooter
         public MacaronConveyorFlow(ConveyorController conveyor, List<ConveyorBlock3D[]> rows,
             List<BlockGroup> groups, float rowSpacing, float initialFrontT, float laneSpacing,
             int lanes, float cakeDiameter, ConveyorJunction[] feeders = null,
-            float loopSpacingMultiplier = 1, float feederSpacingMultiplier = 1)
+            float loopSpacingMultiplier = 1, float feederSpacingMultiplier = 1, bool independentLanePacking = true)
         {
             _conveyor = conveyor;
             _rows = rows;
@@ -48,7 +48,7 @@ namespace BlockShooter
             if (conveyor.SplineContainer.Spline.Closed)
             {
                 _loop = new MacaronLoopFlow(conveyor, rows, groups, feeders ?? Array.Empty<ConveyorJunction>(), _rowSpacing, laneSpacing, lanes, cakeDiameter,
-                    loopSpacingMultiplier, feederSpacingMultiplier);
+                    loopSpacingMultiplier, feederSpacingMultiplier, independentLanePacking);
                 return;
             }
             int samples = Mathf.Clamp(Mathf.CeilToInt(conveyor.SplineWorldLength / .015f), 32, 4096);

@@ -106,7 +106,7 @@ namespace BlockShooter.Editor
                 cake.transform.position += cake.transform.up * (-prefab.GetComponent<Renderer>().localBounds.min.y * scale);
             }
             foreach (var collider in _root.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-            var bounds = _root.GetComponentsInChildren<Renderer>().Where(r => r.enabled && r.name != "Factory floor").Select(r => r.bounds).ToArray();
+            var bounds = MacaronCameraFrame.CoreBounds(level);
             _bounds = bounds[0]; foreach (var b in bounds) _bounds.Encapsulate(b);
             var cameraObject = new GameObject("Level preview camera");
             cameraObject.transform.SetParent(_root.transform);
@@ -117,7 +117,7 @@ namespace BlockShooter.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(.88f, .85f, .78f);
             camera.enabled = true;
-            cameraObject.AddComponent<MacaronCameraFrame>().Frame(bounds, level.cameraTilt, level.cameraFieldOfView, level.cameraPadding);
+            cameraObject.AddComponent<MacaronCameraFrame>().FrameLevel(level);
             foreach (var t in _root.GetComponentsInChildren<Transform>(true)) t.gameObject.hideFlags = HideFlags.HideAndDontSave;
         }
     }

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using UnityEngine.Splines;
 
 namespace BlockShooter
 {
@@ -12,6 +14,23 @@ namespace BlockShooter
         private bool _ready;
         private int _width, _height;
         private Rect _safeArea;
+        private MacaronLevel _level;
+        private readonly List<ConveyorTrackMeshBuilder> _extensions = new();
+
+        public static Bounds[] CoreBounds(MacaronLevel level)
+        {
+            return level.GetComponentsInChildren<Renderer>().Where(r =>
+                (r.enabled || r.gameObject == level.conveyorPath.gameObject) &&
+                r.name != "Factory floor" && !r.name.StartsWith("Conveyor board") &&
+                !level.feederBranches.Any(f => r.transform.IsChildOf(f.transform)))
+                .Select(r => r.bounds).ToArray();
+        }
+
+        public void FrameLevel(MacaronLevel level)
+        {
+            _level = level;
+            Frame(CoreBounds(level), level.cameraTilt, level.cameraFieldOfView, level.cameraPadding);
+        }
 
         public void Frame(IEnumerable<Bounds> bounds, float tilt, float fieldOfView, Vector4 padding)
         {
@@ -63,6 +82,71 @@ namespace BlockShooter
             Fits(far + .02f, slopes, out var center);
             transform.position = transform.rotation * new Vector3(center.x, center.y, -far - .02f);
             _camera.farClipPlane = Mathf.Max(100, maxZ + far + 10);
+            ExtendFeeders();
+        }
+
+        private void ExtendFeeders()
+        {
+            if (_level == null) return;
+            while (_extensions.Count > _level.feederBranches.Length)
+            {
+                var extra = _extensions[_extensions.Count - 1];
+                if (extra != null)
+                {
+                    if (extra.GetComponent<MeshFilter>().sharedMesh != null) DestroyImmediate(extra.GetComponent<MeshFilter>().sharedMesh);
+                    DestroyImmediate(extra.gameObject);
+                }
+                _extensions.RemoveAt(_extensions.Count - 1);
+            }
+            for (int i = 0; i < _level.feederBranches.Length; i++)
+            {
+                var source = _level.feederBranches[i].Branch;
+                var path = source.GetComponent<SplineContainer>();
+                path.Spline.Evaluate(0, out var p, out var tangent, out _);
+                var start = path.transform.TransformPoint((Vector3)p);
+                var outward = -path.transform.TransformDirection((Vector3)tangent).normalized;
+                float length = 1;
+                // A bounded search also covers feeders approaching the top/bottom of the screen.
+                for (int step = 0; step < 14; step++)
+                {
+                    var view = _camera.WorldToViewportPoint(start + outward * length);
+                    if (view.z <= 0 || view.x < -.15f || view.x > 1.15f || view.y < -.15f || view.y > 1.15f) break;
+                    length *= 2;
+                }
+                if (_extensions.Count <= i)
+                {
+                    var go = new GameObject("Offscreen feeder extension") { hideFlags = HideFlags.DontSave };
+                    go.transform.SetParent(transform, false);
+                    go.AddComponent<SplineContainer>();
+                    _extensions.Add(go.AddComponent<ConveyorTrackMeshBuilder>());
+                }
+                var extension = _extensions[i];
+                extension.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                var end = extension.transform.InverseTransformPoint(start);
+                var beginning = extension.transform.InverseTransformPoint(start + outward * length);
+                var spline = new Spline();
+                var handle = (Unity.Mathematics.float3)((end - beginning) / 3);
+                spline.Add(new BezierKnot((Unity.Mathematics.float3)beginning, -handle, handle), TangentMode.Broken);
+                spline.Add(new BezierKnot((Unity.Mathematics.float3)end, -handle, handle), TangentMode.Broken);
+                extension.GetComponent<SplineContainer>().Spline = spline;
+                extension.beltHalfWidth = source.beltHalfWidth;
+                extension.railWidth = source.railWidth;
+                extension.railHeight = source.railHeight;
+                extension.wallAboveBelt = source.wallAboveBelt;
+                extension.closeBottom = source.closeBottom;
+                extension.resolution = 8;
+                extension.GetComponent<Renderer>().sharedMaterials = source.GetComponent<Renderer>().sharedMaterials;
+                var previous = extension.GetComponent<MeshFilter>().sharedMesh;
+                extension.BuildMesh();
+                if (previous != null) DestroyImmediate(previous);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var extension in _extensions)
+                if (extension != null && extension.GetComponent<MeshFilter>().sharedMesh != null)
+                    DestroyImmediate(extension.GetComponent<MeshFilter>().sharedMesh);
         }
 
         private bool Fits(float distance, Vector4 slopes, out Vector2 center)

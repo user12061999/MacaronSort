@@ -75,6 +75,8 @@ namespace BlockShooter
         public ConveyorJunction[] feederBranches = Array.Empty<ConveyorJunction>();
         public ConveyorGateDoor collectionGate;
         [Header("Loop cake spacing")]
+        [Tooltip("On: independent lane slots and near-equal cake spacing, like the reference video. Off: shared rows aligned before collection. Applied when the level starts.")]
+        public bool independentLanePacking = true;
         [Tooltip("Multiplies automatic ring row spacing. Lower = closer cakes; very low values can overlap on inner bends. Applied when the level starts.")]
         [Range(.5f, 1.5f)] public float loopSpacingMultiplier = .9f;
         [Tooltip("Multiplies feeder row spacing, independently of the ring. Applied when the level starts.")]
