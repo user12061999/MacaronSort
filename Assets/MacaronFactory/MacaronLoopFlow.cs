@@ -9,6 +9,7 @@ namespace BlockShooter
     public sealed class MacaronLoopFlow
     {
         private readonly MacaronAlignedLoopFlow _aligned;
+        private static readonly Unity.Profiling.ProfilerMarker TickMarker = new("Macaron.IndependentLoop.Tick");
         private sealed class Path
         {
             public readonly Vector3[] Points = new Vector3[513];
@@ -60,6 +61,15 @@ namespace BlockShooter
         private readonly float _laneSpacing, _feederSpacing;
         private readonly Dictionary<ConveyorBlock3D, int> _rowOf = new();
         private readonly Dictionary<ConveyorBlock3D, (Vector3 start, float time)> _merging = new();
+        private readonly List<ConveyorBlock3D> _expiredMerges = new();
+        private readonly List<(ConveyorBlock3D block, float distance, int order)> _available = new();
+        private readonly int[] _candidates;
+        private readonly float _maxStep;
+        private static readonly Comparison<(ConveyorBlock3D block, float distance, int order)> PickupOrder = (a, b) =>
+        {
+            int result = a.distance.CompareTo(b.distance);
+            return result != 0 ? result : a.order.CompareTo(b.order);
+        };
 
         private static bool Alive(ConveyorBlock3D block) => block != null && !block.IsDestroyed;
         private static float Spacing(float spacing, float diameter, float multiplier)
@@ -86,6 +96,9 @@ namespace BlockShooter
             _slots = _lanes.Select(p => new ConveyorBlock3D[Capacity(p, desired)]).ToArray();
             _phase = new float[lanes];
             _pitch = _lanes.Select((p, i) => p.Length / _slots[i].Length).ToArray();
+            _maxStep = _pitch.Min() * .2f;
+            _candidates = new int[lanes];
+            _available.Capacity = rows.Count * lanes;
             _feeders = feeders.Select(f => new Path(f.GetComponent<SplineContainer>())).ToArray();
             _queues = feeders.Select(f => new Queue<int>()).ToArray();
             _mouth = new float[feeders.Length];
@@ -115,11 +128,12 @@ namespace BlockShooter
         public int Tick(float speed, float gateLength, List<ConveyorBlock3D> pickup)
         {
             if (_aligned != null) return _aligned.Tick(speed, gateLength, pickup);
+            using var sample = TickMarker.Auto();
             float travel = Mathf.Max(0, speed) * Time.deltaTime;
             float remaining = travel;
             while (remaining > 0)
             {
-                float step = Mathf.Min(remaining, _pitch.Min() * .2f);
+                float step = Mathf.Min(remaining, _maxStep);
                 for (int lane = 0; lane < _lanes.Length; lane++)
                     _phase[lane] = Mathf.Repeat(_phase[lane] + step, _lanes[lane].Length);
                 for (int f = 0; f < _feeders.Length; f++)
@@ -127,21 +141,21 @@ namespace BlockShooter
                     _headGap[f] = Mathf.Max(0, _headGap[f] - step);
                     if (_queues[f].Count == 0 || _headGap[f] > .0001f) continue;
                     int row = _queues[f].Peek();
-                    var candidates = new int[_rows[row].Length];
+                    int width = _rows[row].Length;
                     bool free = true;
-                    for (int lane = 0; lane < candidates.Length; lane++)
+                    for (int lane = 0; lane < width; lane++)
                     {
                         // Reserve the next position just past the mouth in every lane before admitting a row.
                         int slot = Mathf.CeilToInt(Mathf.Repeat(_join[f, lane] - _phase[lane], _lanes[lane].Length) / _pitch[lane]) % _slots[lane].Length;
-                        candidates[lane] = slot;
+                        _candidates[lane] = slot;
                         if (Alive(_slots[lane][slot])) free = false;
                     }
                     if (!free) continue;
                     _queues[f].Dequeue();
-                    for (int lane = 0; lane < candidates.Length; lane++)
+                    for (int lane = 0; lane < width; lane++)
                     {
                         var block = _rows[row][lane];
-                        _slots[lane][candidates[lane]] = block;
+                        _slots[lane][_candidates[lane]] = block;
                         _merging[block] = (block.transform.position, Time.time);
                     }
                     _headGap[f] = _feederSpacing;
@@ -150,7 +164,7 @@ namespace BlockShooter
             }
             Place();
             pickup.Clear();
-            var available = new List<(ConveyorBlock3D block, float distance)>();
+            _available.Clear();
             for (int lane = 0; lane < _lanes.Length; lane++)
                 for (int slot = 0; slot < _slots[lane].Length; slot++)
                 {
@@ -158,9 +172,10 @@ namespace BlockShooter
                     if (!Alive(block) || block.IsTargeted || _merging.ContainsKey(block)) continue;
                     float distance = Mathf.Repeat(-(_phase[lane] + slot * _pitch[lane]), _lanes[lane].Length);
                     if (IsInPickupWindow(distance, gateLength, travel, _lanes[lane].Length))
-                        available.Add((block, distance > _lanes[lane].Length - travel ? distance - _lanes[lane].Length : distance));
+                        _available.Add((block, distance > _lanes[lane].Length - travel ? distance - _lanes[lane].Length : distance, _available.Count));
                 }
-            pickup.AddRange(available.OrderBy(p => p.distance).Select(p => p.block));
+            _available.Sort(PickupOrder);
+            foreach (var candidate in _available) pickup.Add(candidate.block);
             return pickup.Count == 0 ? -1 : _rowOf[pickup[0]];
         }
 
@@ -169,7 +184,9 @@ namespace BlockShooter
 
         private void Place()
         {
-            foreach (var block in _merging.Keys.Where(b => !Alive(b)).ToArray()) _merging.Remove(block);
+            _expiredMerges.Clear();
+            foreach (var entry in _merging) if (!Alive(entry.Key)) _expiredMerges.Add(entry.Key);
+            foreach (var block in _expiredMerges) _merging.Remove(block);
             for (int lane = 0; lane < _lanes.Length; lane++)
                 for (int slot = 0; slot < _slots[lane].Length; slot++)
                 {
@@ -182,7 +199,7 @@ namespace BlockShooter
                         position = Vector3.Lerp(merge.start, position, Mathf.SmoothStep(0, 1, t));
                         if (t >= 1) _merging.Remove(block);
                     }
-                    block.gameObject.SetActive(true);
+                    if (!block.gameObject.activeSelf) block.gameObject.SetActive(true);
                     block.transform.SetPositionAndRotation(position, rotation);
                 }
             for (int f = 0; f < _queues.Length; f++)
@@ -191,12 +208,20 @@ namespace BlockShooter
                 foreach (int row in _queues[f])
                 {
                     float distance = _mouth[f] - _headGap[f] - index++ * _feederSpacing;
+                    if (distance < 0)
+                    {
+                        foreach (var hidden in _rows[row])
+                            if (Alive(hidden) && hidden.gameObject.activeSelf) hidden.gameObject.SetActive(false);
+                        continue;
+                    }
                     _feeders[f].Pose(distance, out var position, out var rotation);
                     for (int lane = 0; lane < _rows[row].Length; lane++)
                     {
                         var block = _rows[row][lane];
                         if (!Alive(block)) continue;
-                        block.gameObject.SetActive(distance >= 0);
+                        bool visible = distance >= 0;
+                        if (block.gameObject.activeSelf != visible) block.gameObject.SetActive(visible);
+                        if (!visible) continue;
                         block.transform.SetPositionAndRotation(position + rotation * Vector3.right * ((lane - (_rows[row].Length - 1) * .5f) * _laneSpacing), rotation);
                     }
                 }
@@ -206,9 +231,21 @@ namespace BlockShooter
         public bool HasReachableMatch(Predicate<ConveyorBlock3D> match)
         {
             if (_aligned != null) return _aligned.HasReachableMatch(match);
-            if (_slots.Any(lane => lane.Any(b => Alive(b) && match(b)))) return true;
-            return _queues.Any(q => q.Count > 0 && Enumerable.Range(0, _rows[q.Peek()].Length)
-                .All(lane => _slots[lane].Any(b => !Alive(b))));
+            foreach (var lane in _slots)
+                foreach (var block in lane) if (Alive(block) && match(block)) return true;
+            foreach (var queue in _queues)
+            {
+                if (queue.Count == 0) continue;
+                bool canAdmit = true;
+                for (int lane = 0; lane < _rows[queue.Peek()].Length; lane++)
+                {
+                    bool empty = false;
+                    foreach (var block in _slots[lane]) if (!Alive(block)) { empty = true; break; }
+                    if (!empty) { canAdmit = false; break; }
+                }
+                if (canAdmit) return true;
+            }
+            return false;
         }
 
         public static int RowCapacity(MacaronLevel level, float diameter)

@@ -9,6 +9,7 @@ namespace BlockShooter
     // Ring positions are reserved per row. Feeders can fill only an empty passing position.
     internal sealed class MacaronAlignedLoopFlow
     {
+        private static readonly Unity.Profiling.ProfilerMarker TickMarker = new("Macaron.AlignedLoop.Tick");
         private readonly List<ConveyorBlock3D[]> _rows;
         private readonly Path _ring;
         private readonly Path[] _feeders;
@@ -103,7 +104,7 @@ namespace BlockShooter
                 {
                     var block = row[lane];
                     if (block == null || block.IsDestroyed) continue;
-                    block.gameObject.SetActive(distance >= 0);
+                    if (block.gameObject.activeSelf != (distance >= 0)) block.gameObject.SetActive(distance >= 0);
                     if (distance < 0) continue;
                     if (_laneDistances != null)
                     {
@@ -225,10 +226,16 @@ namespace BlockShooter
             }
         }
 
-        private bool Alive(int row) => row >= 0 && _rows[row].Any(b => b != null && !b.IsDestroyed);
+        private bool Alive(int row)
+        {
+            if (row < 0) return false;
+            foreach (var block in _rows[row]) if (block != null && !block.IsDestroyed) return true;
+            return false;
+        }
 
         public int Tick(float speed, float gateLength, List<ConveyorBlock3D> pickup)
         {
+            using var sample = TickMarker.Auto();
             gateLength = Mathf.Min(gateLength, _ring.AlignmentLength);
             for (int row = 0; row < _mergeProgress.Length; row++)
                 _mergeProgress[row] = Mathf.Min(1, _mergeProgress[row] + Time.deltaTime / .22f);
@@ -252,7 +259,9 @@ namespace BlockShooter
                         int row = _queues[f].Dequeue();
                         _occupants[slot] = row;
                         _mergeProgress[row] = 0;
-                        _mergeStart[row] = _rows[row].Select(b => b.transform.position).ToArray();
+                        _mergeStart[row] ??= new Vector3[_rows[row].Length];
+                        for (int lane = 0; lane < _rows[row].Length; lane++)
+                            _mergeStart[row][lane] = _rows[row][lane].transform.position;
                         _headGap[f] = _feederSpacing;
                         break;
                     }
@@ -269,7 +278,8 @@ namespace BlockShooter
                 if (_occupants[slot] < 0) continue;
                 float toGate = Mathf.Repeat(-(_phase + slot * _spacing), _ring.Length);
                 if (!IsInPickupWindow(toGate, gateLength, travel, _ring.Length)) continue;
-                pickup.AddRange(_rows[_occupants[slot]].Where(b => b != null && !b.IsDestroyed && !b.IsTargeted));
+                foreach (var block in _rows[_occupants[slot]])
+                    if (block != null && !block.IsDestroyed && !block.IsTargeted) pickup.Add(block);
                 if (toGate < closest)
                 {
                     closest = toGate;
@@ -311,9 +321,17 @@ namespace BlockShooter
         public bool HasReachableMatch(Predicate<ConveyorBlock3D> match)
         {
             foreach (int row in _occupants)
-                if (row >= 0 && _rows[row].Any(b => b != null && !b.IsDestroyed && match(b))) return true;
+                if (row >= 0)
+                    foreach (var block in _rows[row])
+                        if (block != null && !block.IsDestroyed && match(block)) return true;
             // If the ring can admit more rows, let it fill before declaring a jam.
-            return _occupants.Any(row => !Alive(row)) && _queues.Any(queue => queue.Count > 0);
+            foreach (int row in _occupants)
+                if (!Alive(row))
+                {
+                    foreach (var queue in _queues) if (queue.Count > 0) return true;
+                    break;
+                }
+            return false;
         }
     }
 }

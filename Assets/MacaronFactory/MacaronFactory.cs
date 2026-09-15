@@ -14,6 +14,7 @@ namespace BlockShooter
     [RequireComponent(typeof(GameManager))]
     public sealed class MacaronFactory : MonoBehaviour
     {
+        public MacaronFeedbackPlayer feedback;
         [Header("Existing package conveyor")]
         public LevelRoot conveyorSource;
         [Header("Hand-authored levels (played in list order)")]
@@ -299,9 +300,11 @@ namespace BlockShooter
             if (!tray.Accessible || slot < 0)
             {
                 tray.PlayInvalidClick(trayInvalidClickTime, trayInvalidClickAngle);
+                feedback?.Play(MacaronFeedbackEvent.InvalidTray, tray.transform.position);
                 return false;
             }
             tray.StopClickFeedback();
+            feedback?.Play(MacaronFeedbackEvent.SelectTray, tray.transform.position);
             _slots[slot] = tray; // Reserve before exposing the trays underneath.
             tray.LeaveTable();
             RefreshAccessibility();
@@ -329,6 +332,7 @@ namespace BlockShooter
             tray.transform.SetPositionAndRotation(SlotPosition(slot), rotation);
             tray.transform.localScale = finalScale;
             tray.Moving = false;
+            feedback?.Play(MacaronFeedbackEvent.TrayArrived, tray.transform.position);
             tray.Refresh(false);
         }
 
@@ -369,6 +373,7 @@ namespace BlockShooter
             visual.localScale = Vector3.one;
             Destroy(block.gameObject);
             tray.Receive();
+            feedback?.Play(MacaronFeedbackEvent.CakeLanded, target.position);
             _transfers--;
             UpdateHud();
             if (tray.Filled == tray.Capacity && tray.Reserved == 0) StartCoroutine(Ship(tray));
@@ -384,6 +389,7 @@ namespace BlockShooter
             tray.Lid.gameObject.SetActive(true);
             yield return tray.Lid.DOLocalMove(tray.ClosedLidPosition, .25f).SetEase(Ease.OutCubic)
                 .SetLink(tray.gameObject).WaitForCompletion();
+            feedback?.Play(MacaronFeedbackEvent.TrayPacked, tray.transform.position);
             yield return DOTween.Sequence().SetLink(tray.gameObject)
                 .AppendInterval(.1f)
                 .Append(tray.transform.DOMove(tray.transform.position + Vector3.right * 7f, .45f).SetEase(Ease.InQuad))
@@ -408,12 +414,19 @@ namespace BlockShooter
             }
         }
 
+        private System.Predicate<ConveyorBlock3D> _canReceiveForDeadlock;
+        private bool CanReceiveForDeadlock(ConveyorBlock3D block)
+        {
+            for (int i = 0; i < OpenSlots; i++)
+                if (_slots[i] != null && _slots[i].Color == block.ColorType && _slots[i].CanReceive) return true;
+            return false;
+        }
+
         public bool IsDeadlocked()
         {
             if (!_ready || !GameManager.Instance.IsPlaying || IsBusy || _remaining == 0) return false;
             for (int i = 0; i < OpenSlots; i++) if (_slots[i] == null) return false;
-            if (_conveyorFlow.IsLoop) return !_conveyorFlow.HasReachableMatch(block =>
-                _slots.Take(OpenSlots).Any(tray => tray.Color == block.ColorType && tray.CanReceive));
+            if (_conveyorFlow.IsLoop) return !_conveyorFlow.HasReachableMatch(_canReceiveForDeadlock ??= CanReceiveForDeadlock);
             // Only cakes in the leading row at the conveyor endpoint count.
             var incoming = PickupBlocks;
             bool hasIncoming = false;
@@ -438,6 +451,7 @@ namespace BlockShooter
                 return false;
             }
             SaveManager.Coins -= unlockSlotCost;
+            feedback?.Play(MacaronFeedbackEvent.UnlockSlot, SlotPosition(OpenSlots));
             OpenSlots++;
             _deadlockTime = 0;
             UpdateHud();
@@ -454,12 +468,21 @@ namespace BlockShooter
         {
             if (!GameManager.Instance.IsPlaying) return;
             GameManager.Instance.SetState(win ? GameState.Win : GameState.Fail);
+            feedback?.Play(win ? MacaronFeedbackEvent.Win : MacaronFeedbackEvent.Lose, _layout.counterAnchor.position);
             if (win)
             {
                 SaveManager.Coins += shippingReward;
                 if (stageOverride == 0) PlayerPrefs.SetInt("Macaron.Stage", Stage + 1);
                 PlayerPrefs.Save();
             }
+            StartCoroutine(ShowFinishOverlay(win));
+        }
+
+        private IEnumerator ShowFinishOverlay(bool win)
+        {
+            while (win && feedback != null && feedback.isActiveAndEnabled && feedback.IsEffectPlaying(MacaronFeedbackEvent.Win))
+                yield return null;
+
             ShowOverlay(win ? "ORDER COMPLETE!" : "PACKING JAM!",
                 win ? $"Every macaron shipped. +{shippingReward} coins" : "All open slots are full. The arriving colors do not match.",
                 win ? "NEXT STAGE" : "TRY AGAIN", () => {

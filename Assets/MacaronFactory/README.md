@@ -222,3 +222,12 @@ Feeder vẫn chờ có vị trí trống ở tất cả các làn cần thiết 
 ### Chọn cách xếp bánh
 Independent Lane Packing có trong MacaronLevel > Loop cake spacing và trong Generator. Bật (mặc định): cách hiện tại theo video, số slot riêng từng làn. Tắt: cách ngay trước bản theo video, giữ hàng logic và căn hàng ở đoạn thẳng trước cổng. Runtime, preview và phép tính sức chứa đều dùng lựa chọn này. Đổi trực tiếp trên MacaronLevel sẽ cập nhật preview; đổi trong Generator cần Generate lại rồi Save. Khi đang chơi, đổi này áp dụng ở lần nạp level tiếp theo. Không ảnh hưởng hình dạng băng chuyền; chỉ dùng cho vòng kín. Không chạy test hoặc Play Mode.
 
+
+### Giảm cấp phát khi chạy conveyor
+Hai chế độ loop bỏ LINQ trong các lượt quét mỗi frame; chế độ independent tái sử dụng danh sách pickup (sort giữ thứ tự khi bằng khoảng cách), bộ đệm feeder, danh sách dọn merge và cache bước mô phỏng. Không cập nhật pose cho bánh feeder còn ẩn. Kiểm tra deadlock dùng predicate cache và vòng lặp, giữ điều kiện gameplay. Có marker Macaron.IndependentLoop.Tick / Macaron.AlignedLoop.Tick để đo CPU và GC Alloc trên thiết bị khi dùng Profiler. Chưa đo FPS hoặc chạy Play Mode/test, nên chưa khẳng định đây là toàn bộ nguyên nhân giật.
+
+
+### Gameplay effects and sound
+MacaronFeedback.asset configures feedback independently of gameplay. MacaronFeedbackPlayer on the scene's MacaronFactory object plays SelectTray, InvalidTray, TrayArrived, CakeLanded, TrayPacked, UnlockSlot, Win and Lose. InvalidTray and Lose use sound only by default; Win uses confetti and other successful actions use small sparkle/flash effects from Hyper Casual FX.
+Each cue exposes prefab, sound, volume, pitch, effect scale, world-space offset, pool size, cooldown and maximum duration. Effects Enabled / Sound Enabled toggle each channel; Master Volume controls all SFX and Mixer Group is optional. The short synthesized WAV clips in Audio can be replaced with other imported AudioClips.
+Pools are created once at scene startup; exhausted effect/audio pools skip playback. Change prefab/pool configuration before entering Play Mode; volume and scale can be tuned during playback. Gameplay timing and conveyor speed are unchanged. Compilation and asset references were inspected; no tests or Play Mode were run.

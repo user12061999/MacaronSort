@@ -1,0 +1,99 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9d9b70498c6dd74cbd2e97d797b86ae, type: 3}
+  m_Name: MacaronFeedback
+  m_EditorClassIdentifier: 
+  effectsEnabled: 1
+  soundEnabled: 1
+  masterVolume: 0.75
+  mixerGroup: {fileID: 0}
+  cues:
+  - trigger: 0
+    effectPrefab: {fileID: 0}
+    sound: {fileID: 8300000, guid: 47e2d47af44a080498d60b38566902b3, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 1
+    effectPrefab: {fileID: 0}
+    sound: {fileID: 8300000, guid: 5d7e939f7e7d6ea46a7218527405215b, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 2
+    effectPrefab: {fileID: 0}
+    sound: {fileID: 8300000, guid: 15f73e5af5d4b534696d9a71a4789769, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 3
+    effectPrefab: {fileID: 0}
+    sound: {fileID: 8300000, guid: 7bfed57c046fc2f43b21fa69eb0a351a, type: 3}
+    volume: 0.35
+    pitch: 1
+    effectScale: 0.15
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 4
+    cooldown: 0.09
+    maxDuration: 5
+  - trigger: 4
+    effectPrefab: {fileID: 8680598818964007281, guid: dcd90c4976197424b9958a7c54b6bb8c, type: 3}
+    sound: {fileID: 8300000, guid: b1e1db7b8943a244cb40a6be1da6beb9, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 5
+    effectPrefab: {fileID: 8680598818964007281, guid: dcd90c4976197424b9958a7c54b6bb8c, type: 3}
+    sound: {fileID: 8300000, guid: 3aba081083dc4eb4e85ff73d85c940b1, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 6
+    effectPrefab: {fileID: 4938095755617958529, guid: 2e79f16be10fbd14f8d5ef191f8db4aa, type: 3}
+    sound: {fileID: 8300000, guid: e3edde028dc11db4ba3fb1697c8d477b, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 1.2
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 1
+    cooldown: 0.12
+    maxDuration: 5
+  - trigger: 7
+    effectPrefab: {fileID: 0}
+    sound: {fileID: 8300000, guid: 268007ddd91a58b41813b755ef292383, type: 3}
+    volume: 0.65
+    pitch: 1
+    effectScale: 0.3
+    offset: {x: 0, y: 0.15, z: 0}
+    poolSize: 2
+    cooldown: 0.12
+    maxDuration: 5
