@@ -301,6 +301,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   feedback: {fileID: 1412556479}
+  hudButtonSprite: {fileID: 21300000, guid: bbb172b6bb6024fc783d6f54f2954431, type: 3}
+  hudButtonPressedSprite: {fileID: 21300000, guid: 6eaec966e6b214f5e87092fc5de3cc5f, type: 3}
+  hudPanelSprite: {fileID: 21300000, guid: a778b1b935d9346a58cb4e03ec4ca19f, type: 3}
+  hudFont: {fileID: 11400000, guid: 607a42e3e90f14eecaf065ce4e7a9115, type: 2}
   conveyorSource: {fileID: 3106933310930561449, guid: 515137003caa54646adb1465f557790e, type: 3}
   levels:
   - {fileID: 8771080922117147080, guid: a408b63c445714649bae5b512fd9cbf8, type: 3}
@@ -313,6 +317,7 @@ MonoBehaviour:
   - {fileID: 1821960899676832084, guid: 574ad82ba1f30aa42a9f6a525a78d6ad, type: 3}
   - {fileID: 57351702298609094, guid: 677bc95c44ae3ac49901af2a0723c465, type: 3}
   - {fileID: 6221063533694578287, guid: 564f6f32629207a47a5af229ddbc807d, type: 3}
+  colorRegistry: {fileID: 0}
   conveyorMacaronScale: 1.6
   conveyorSpeed: 2.4
   macaronExitTime: 0.6

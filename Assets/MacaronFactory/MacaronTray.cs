@@ -60,6 +60,7 @@ namespace BlockShooter
             foreach (var corner in _corners) { min = Vector2.Min(min, corner); max = Vector2.Max(max, corner); }
             Footprint = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
             ClosedLidPosition = lid.localPosition;
+            factory.ApplyTrayAppearance(tintRenderers, color);
             _lidRenderers = lid.GetComponentsInChildren<Renderer>(true);
             _interiorRenderers = System.Array.FindAll(GetComponentsInChildren<Renderer>(true), r => r.name.StartsWith("Macaron_Row"));
             _lidMaterials = new Material[_lidRenderers.Length][];
@@ -102,18 +103,21 @@ namespace BlockShooter
         {
             Accessible = accessible && OnTable;
             if (Accessible) Hidden = false;
-            var color = Hidden ? Factory.PaperMaterial.color : Factory.FlavorMaterial(Color).color;
+            var color = Hidden ? Factory.PaperMaterial.color : Factory.TrayColor(Color);
             if (OnTable && !Accessible)
                 color = UnityEngine.Color.Lerp(color, new UnityEngine.Color(0, 0, 0, color.a), Mathf.Clamp01(Factory.coveredTrayDarkness));
             _tint.SetColor("_BaseColor", color);
+            _tint.SetColor("_Color", color);
             foreach (var renderer in tintRenderers) renderer.SetPropertyBlock(_tint, 0);
-            var lining = UnityEngine.Color.Lerp(Hidden ? Factory.PaperMaterial.color : Factory.FlavorMaterial(Color).color,
+            var lining = UnityEngine.Color.Lerp(Hidden ? Factory.PaperMaterial.color : Factory.TrayColor(Color),
                 new UnityEngine.Color(1f, .95f, .85f), .6f);
             if (OnTable && !Accessible) lining *= 1 - Mathf.Clamp01(Factory.coveredTrayDarkness);
             lining.a = 1;
             _tint.SetColor("_BaseColor", lining);
+            _tint.SetColor("_Color", lining);
             foreach (var renderer in _interiorRenderers) renderer.SetPropertyBlock(_tint, 0);
             _tint.SetColor("_BaseColor", color);
+            _tint.SetColor("_Color", color);
             // Use the actual lid with opaque paper while hidden, including its window.
             for (int r = 0; r < _lidRenderers.Length; r++)
             {
@@ -125,6 +129,7 @@ namespace BlockShooter
                 }
                 _lidRenderers[r].sharedMaterials = materials;
             }
+            foreach (var renderer in tintRenderers) renderer.SetPropertyBlock(_tint, 0);
             lid.gameObject.SetActive(Hidden || Shipping);
             Label.transform.localPosition = new Vector3(_collider.center.x,
                 _collider.center.y + _collider.size.y / 2 + .055f,
@@ -132,6 +137,7 @@ namespace BlockShooter
             Label.fontSize = Hidden ? 3.4f : 1.6f;
             Label.text = Hidden ? "?" : $"{Filled}/{Capacity}";
             Label.color = Accessible || !OnTable ? new Color(.2f, .12f, .22f) : new Color(.45f, .4f, .43f);
+            Label.gameObject.SetActive(false);
         }
 
         public void LeaveTable()

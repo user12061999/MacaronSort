@@ -13,6 +13,11 @@ namespace BlockShooter
             public string displayName;
             public Color editorColor;
             public Material material;
+            [Tooltip("Use Editor Color for the cake shell, keeping the assigned material's other properties.")]
+            public bool overrideColor;
+            public Material trayMaterial;
+            public bool overrideTrayColor;
+            public Color trayColor = Color.white;
         }
 
         [Header("Registry of Colors & Materials")]
@@ -40,6 +45,20 @@ namespace BlockShooter
                     new ColorDefinition { colorType = BlockColorType.Orange, displayName = "Orange", editorColor = new Color(1.0f, 0.55f, 0.1f),  material = orangeMaterial }
                 };
             }
+        }
+
+        public bool OverridesColor(BlockColorType colorType)
+            => colors?.Find(x => x != null && x.colorType == colorType)?.overrideColor == true;
+
+        public Material GetTrayMaterial(BlockColorType colorType)
+            => colors?.Find(x => x != null && x.colorType == colorType)?.trayMaterial;
+
+        public Color GetTrayColor(BlockColorType colorType, Color fallback)
+        {
+            var def = colors?.Find(x => x != null && x.colorType == colorType);
+            if (def == null) return fallback;
+            if (def.overrideTrayColor) return def.trayColor;
+            return def.trayMaterial != null ? def.trayMaterial.color : fallback;
         }
 
         public Material GetMaterial(BlockColorType colorType)

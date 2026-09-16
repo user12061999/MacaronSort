@@ -59,6 +59,17 @@ namespace BlockShooter.Editor
             if (factory == null) { Error = "Open the MacaronFactory scene to supply cake prefabs and camera settings."; return; }
             string signature = EditorJsonUtility.ToJson(_source) + EditorJsonUtility.ToJson(factory)
                 + Screen.width + ":" + Screen.height;
+            if (factory.ColorRegistry != null)
+            {
+                signature += EditorJsonUtility.ToJson(factory.ColorRegistry);
+                foreach (BlockColorType color in Enum.GetValues(typeof(BlockColorType)))
+                {
+                    var material = factory.ColorRegistry.GetMaterial(color);
+                    if (material != null) signature += EditorJsonUtility.ToJson(material);
+                    var trayMaterial = factory.ColorRegistry.GetTrayMaterial(color);
+                    if (trayMaterial != null) signature += EditorJsonUtility.ToJson(trayMaterial);
+                }
+            }
             foreach (var spline in _source.GetComponentsInChildren<UnityEngine.Splines.SplineContainer>())
                 signature += EditorJsonUtility.ToJson(spline) + EditorJsonUtility.ToJson(spline.transform);
             if (_source.trayRoot != null)
@@ -96,12 +107,17 @@ namespace BlockShooter.Editor
                 junction.SyncJunction();
             }
             track.BuildMesh();
-            foreach (var tray in level.GetTrays()) if (tray.lid != null) tray.lid.gameObject.SetActive(tray.mystery);
+            foreach (var tray in level.GetTrays())
+            {
+                if (tray.lid != null) tray.lid.gameObject.SetActive(tray.mystery);
+                factory.ApplyTrayAppearance(tray.tintRenderers, tray.levelColor);
+            }
             var colors = level.BuildMacaronOrder();
             foreach (var pose in MacaronLoopFlow.PreviewLayout(level, diameter))
             {
                 var prefab = factory.MacaronPrefab(colors[pose.index]);
                 var cake = Object.Instantiate(prefab, pose.position, pose.rotation, _root.transform);
+                factory.ApplyMacaronColor(cake.GetComponent<Renderer>(), colors[pose.index]);
                 cake.transform.localScale = Vector3.one * scale;
                 cake.transform.position += cake.transform.up * (-prefab.GetComponent<Renderer>().localBounds.min.y * scale);
             }

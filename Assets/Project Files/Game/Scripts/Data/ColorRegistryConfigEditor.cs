@@ -113,6 +113,22 @@ namespace BlockShooter.Editor
                 }
 
                 EditorGUILayout.EndHorizontal();
+                EditorGUI.BeginChangeCheck();
+                bool overrideColor = EditorGUILayout.Toggle(new GUIContent("Override Color", "Use Editor Color for the cake material."), def.overrideColor);
+                var trayMaterial = (Material)EditorGUILayout.ObjectField("Tray Material", def.trayMaterial, typeof(Material), false);
+                bool overrideTrayColor = EditorGUILayout.Toggle("Override Tray Color", def.overrideTrayColor);
+                Color trayColor = def.trayColor;
+                if (overrideTrayColor) trayColor = EditorGUILayout.ColorField("Tray Color", trayColor);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(config, "Change Tray Appearance");
+                    def.overrideColor = overrideColor;
+                    def.trayMaterial = trayMaterial;
+                    def.overrideTrayColor = overrideTrayColor;
+                    def.trayColor = trayColor;
+                    EditorUtility.SetDirty(config);
+                }
+                GUILayout.Space(6);
             }
 
             if (toRemove >= 0)

@@ -15,6 +15,11 @@ namespace BlockShooter
     public sealed class MacaronFactory : MonoBehaviour
     {
         public MacaronFeedbackPlayer feedback;
+        [Header("GUI-SimpleRound")]
+        public Sprite hudButtonSprite;
+        public Sprite hudButtonPressedSprite;
+        public Sprite hudPanelSprite;
+        public TMP_FontAsset hudFont;
         [Header("Existing package conveyor")]
         public LevelRoot conveyorSource;
         [Header("Hand-authored levels (played in list order)")]
@@ -23,6 +28,9 @@ namespace BlockShooter
         [Header("Macaron Props prefabs")]
         [Tooltip("Berry, pistachio, lemon, blueberry, lavender, rose")]
         public GameObject[] macaronPrefabs = new GameObject[6];
+        [Tooltip("Cake shell materials by color. Empty uses GameManager's GameConfig color registry. Filling keeps its prefab material.")]
+        public ColorRegistryConfig colorRegistry;
+        public ColorRegistryConfig ColorRegistry => colorRegistry != null ? colorRegistry : GetComponent<GameManager>().config?.colorRegistry;
         [Tooltip("Macaron size on the conveyor. Cakes shrink to their authored Pocket size when collected.")]
         [Min(.1f)] public float conveyorMacaronScale = 1.6f;
         public int maxRowWidth => _layout.columns;
@@ -40,6 +48,8 @@ namespace BlockShooter
         public AnimationCurve macaronExitCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [Tooltip("Jump height above the flight path, in world units.")]
         [Min(0)] public float macaronExitJumpHeight = .7f;
+        [Tooltip("Delay between cakes starting their jump within each pickup row. Jumps may overlap.")]
+        [Min(0)] public float macaronExitStagger = .08f;
         [Tooltip("World units per second when one macaron leaves the conveyor and flies into its tray.")]
         [Min(.1f)] public float macaronExitSpeed = 4f;
         [Tooltip("Peak size relative to the macaron's size when it leaves the belt.")]
@@ -82,14 +92,11 @@ namespace BlockShooter
         private readonly List<MacaronTray> _trays = new();
         private readonly MacaronTray[] _slots = new MacaronTray[6];
         private readonly List<Material> _materials = new();
-        private readonly Dictionary<BlockColorType, Material> _flavors = new();
         private readonly TextMeshProUGUI[] _slotLabels = new TextMeshProUGUI[6];
         private readonly Renderer[] _slotPads = new Renderer[6];
         private TextMeshProUGUI _status, _coins, _progress, _stageText;
         private RectTransform _overlay;
         private RectTransform _hudRoot;
-        private Sprite _hudSprite;
-        private Texture2D _hudTexture;
         private int _remaining, _transfers, _shipped;
         private float _deadlockTime, _noticeUntil, _speedMultiplier = 1;
         private bool _ready;
@@ -232,10 +239,11 @@ namespace BlockShooter
                     var block = groups[row].GetBlock(0, lane);
                     blocks[lane] = block;
                     var color = payload[row][lane];
-                    block.Initialize(color, FlavorMaterial(color).color);
+                    block.Initialize(color, FlavorColor(color));
                     foreach (var renderer in block.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
                     var prefab = MacaronPrefab(color);
                     var visual = Instantiate(prefab, block.transform).transform;
+                    ApplyMacaronColor(visual.GetComponent<Renderer>(), color);
                     visual.name = "Macaron";
                     Vector3 scale = block.transform.lossyScale;
                     visual.localScale = new Vector3(cakeScale / scale.x, cakeScale / scale.y, cakeScale / scale.z);
@@ -267,14 +275,18 @@ namespace BlockShooter
                     _slots.Any(tray => tray != null && tray.CanReceive && tray.Color == block.ColorType));
                 if (receiving) _layout.collectionGate.Open(); else _layout.collectionGate.Close();
             }
-            foreach (var block in PickupBlocks)
+            foreach (var row in PickupBlocks.GroupBy(block => block.transform.parent))
             {
                 if (_layout.collectionGate != null && !_layout.collectionGate.IsOpen) break;
-                foreach (var tray in _slots)
+                int launchIndex = 0;
+                foreach (var block in row.OrderBy(DistanceToReceivingTray).ToArray())
                 {
-                    if (tray == null || tray.Moving || tray.Shipping || tray.Color != block.ColorType || !tray.TryReserve()) continue;
-                    StartCoroutine(Collect(block, tray));
-                    break;
+                    foreach (var tray in _slots)
+                    {
+                        if (tray == null || tray.Moving || tray.Shipping || tray.Color != block.ColorType || !tray.TryReserve()) continue;
+                        StartCoroutine(Collect(block, tray, launchIndex++ * Mathf.Max(0, macaronExitStagger)));
+                        break;
+                    }
                 }
             }
             CheckCompletion();
@@ -336,13 +348,29 @@ namespace BlockShooter
             tray.Refresh(false);
         }
 
-        private IEnumerator Collect(ConveyorBlock3D block, MacaronTray tray)
+        private float DistanceToReceivingTray(ConveyorBlock3D block)
+        {
+            var tray = _slots.FirstOrDefault(t => t != null && t.CanReceive && t.Color == block.ColorType);
+            return tray != null ? (block.transform.position - tray.GetPocket(tray.Filled + tray.Reserved).position).sqrMagnitude
+                : float.PositiveInfinity;
+        }
+
+        private IEnumerator Collect(ConveyorBlock3D block, MacaronTray tray, float delay)
         {
             int pocket = tray.Filled + tray.Reserved - 1;
+            _transfers++;
+            block.SetTargeted(true);
+            if (delay > 0) yield return new WaitForSeconds(delay);
+            if (block != null) block.SetTargeted(false);
+            if (block == null || block.IsDestroyed || tray == null)
+            {
+                if (tray != null) tray.CancelReservation();
+                _transfers--;
+                yield break;
+            }
             // The last item clears/destroys its BlockGroup. Detach before firing that event.
             var parent = block.transform.parent;
             block.transform.SetParent(transform, true);
-            _transfers++;
             if (!block.TryCollect())
             {
                 block.transform.SetParent(parent, true);
@@ -521,13 +549,57 @@ namespace BlockShooter
             BlockColorType.Purple => "LAVENDER", _ => "ROSE"
         };
 
-        public Material FlavorMaterial(BlockColorType color)
+        public Color FlavorColor(BlockColorType color)
         {
-            if (_flavors.TryGetValue(color, out var material)) return material;
-            Color tint = MacaronPrefab(color).GetComponent<Renderer>().sharedMaterials[0].color;
-            material = Material(FlavorName(color), tint);
-            _flavors.Add(color, material);
-            return material;
+            var registry = ColorRegistry;
+            if (registry == null) return MacaronPrefab(color).GetComponent<Renderer>().sharedMaterial.color;
+            var material = registry.GetMaterial(color);
+            return material != null && !registry.OverridesColor(color) ? material.color : registry.GetColor(color);
+        }
+
+        public Color TrayColor(BlockColorType color)
+            => ColorRegistry != null ? ColorRegistry.GetTrayColor(color, FlavorColor(color)) : FlavorColor(color);
+
+        public void ApplyTrayAppearance(Renderer[] renderers, BlockColorType color)
+        {
+            var material = ColorRegistry != null ? ColorRegistry.GetTrayMaterial(color) : null;
+            var tint = new MaterialPropertyBlock();
+            var trayColor = TrayColor(color);
+            foreach (var renderer in renderers)
+            {
+                if (material != null)
+                {
+                    var materials = renderer.sharedMaterials;
+                    materials[0] = material;
+                    renderer.sharedMaterials = materials;
+                }
+                renderer.GetPropertyBlock(tint, 0);
+                tint.SetColor("_BaseColor", trayColor);
+                tint.SetColor("_Color", trayColor);
+                renderer.SetPropertyBlock(tint, 0);
+            }
+        }
+
+        public void ApplyMacaronColor(Renderer renderer, BlockColorType color)
+        {
+            var registry = ColorRegistry;
+            if (registry == null) return;
+            var material = registry.GetMaterial(color);
+            if (material != null)
+            {
+                var materials = renderer.sharedMaterials;
+                materials[0] = material;
+                renderer.sharedMaterials = materials;
+                renderer.SetPropertyBlock(null, 0);
+            }
+            if (material == null || registry.OverridesColor(color))
+            {
+                var tint = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(tint, 0);
+                tint.SetColor("_BaseColor", registry.GetColor(color));
+                tint.SetColor("_Color", registry.GetColor(color));
+                renderer.SetPropertyBlock(tint, 0);
+            }
         }
 
         private Material Material(string label, Color color)
@@ -577,6 +649,7 @@ namespace BlockShooter
             var go = new GameObject(text, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var tmp = go.AddComponent<TextMeshProUGUI>();
+            if (hudFont != null) tmp.font = hudFont;
             tmp.text = text;
             tmp.fontSize = fontSize;
             tmp.alignment = TextAlignmentOptions.Center;
@@ -595,12 +668,16 @@ namespace BlockShooter
             var rect = (RectTransform)go.transform;
             rect.anchorMin = rect.anchorMax = anchor;
             rect.sizeDelta = size;
-            go.GetComponent<Image>().color = new Color(1, .92f, .81f, .96f);
-            go.GetComponent<Image>().sprite = HudSprite();
+            go.GetComponent<Image>().color = Color.white;
+            go.GetComponent<Image>().sprite = hudButtonSprite;
             go.GetComponent<Image>().type = Image.Type.Sliced;
+            go.GetComponent<Image>().pixelsPerUnitMultiplier = 3;
             var button = go.GetComponent<Button>();
+            button.targetGraphic = go.GetComponent<Image>();
+            button.transition = UnityEngine.UI.Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState { pressedSprite = hudButtonPressedSprite };
             button.onClick.AddListener(action);
-            Text(go.transform, text, new Vector2(.5f, .5f), size, 20);
+            Text(go.transform, text, new Vector2(.5f, .5f), size, 20).color = new Color(.12f, .22f, .3f);
             return button;
         }
 
@@ -627,9 +704,11 @@ namespace BlockShooter
             var badgeRect = (RectTransform)levelBadge.transform;
             badgeRect.anchorMin = badgeRect.anchorMax = new Vector2(.5f, .965f);
             badgeRect.sizeDelta = new Vector2(216, 50);
-            levelBadge.GetComponent<Image>().sprite = HudSprite();
+            levelBadge.GetComponent<Image>().sprite = hudButtonSprite;
             levelBadge.GetComponent<Image>().type = Image.Type.Sliced;
-            levelBadge.GetComponent<Image>().color = new Color(.77f, .19f, .13f);
+            levelBadge.GetComponent<Image>().pixelsPerUnitMultiplier = 3;
+            levelBadge.GetComponent<Image>().color = Color.white;
+            _stageText.color = new Color(.12f, .22f, .3f);
             levelBadge.transform.SetAsFirstSibling();
             _coins = Text(canvas.transform, "", new Vector2(.85f, .965f), new Vector2(170, 42), 23);
             _progress = Text(canvas.transform, "", new Vector2(.25f, .61f), new Vector2(130, 70), 20);
@@ -697,23 +776,6 @@ namespace BlockShooter
             }
         }
 
-        private Sprite HudSprite()
-        {
-            if (_hudSprite != null) return _hudSprite;
-            const int size = 32;
-            _hudTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = Mathf.Max(8 - x, x - 23, 0), dy = Mathf.Max(8 - y, y - 23, 0);
-                    _hudTexture.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(8.5f - Mathf.Sqrt(dx * dx + dy * dy))));
-                }
-            _hudTexture.Apply();
-            _hudSprite = Sprite.Create(_hudTexture, new Rect(0, 0, size, size), Vector2.one * .5f, 100, 0,
-                SpriteMeshType.FullRect, new Vector4(9, 9, 9, 9));
-            return _hudSprite;
-        }
-
         private void ShowOverlay(string title, string message, string button, UnityEngine.Events.UnityAction action)
         {
             var canvas = GetComponentInChildren<Canvas>();
@@ -724,10 +786,19 @@ namespace BlockShooter
             _overlay.anchorMin = Vector2.zero;
             _overlay.anchorMax = Vector2.one;
             _overlay.offsetMin = _overlay.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(1f, .91f, .85f, .97f);
-            Text(go.transform, title, new Vector2(.5f, .6f), new Vector2(680, 100), 46).fontStyle = FontStyles.Bold;
-            Text(go.transform, message, new Vector2(.5f, .49f), new Vector2(590, 140), 28);
-            Button(go.transform, button, new Vector2(.5f, .35f), new Vector2(320, 85), action);
+            go.GetComponent<Image>().color = new Color(.12f, .15f, .2f, .75f);
+            var panel = new GameObject("SimpleRound panel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            panel.transform.SetParent(go.transform, false);
+            var panelRect = (RectTransform)panel.transform;
+            panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
+            panelRect.sizeDelta = new Vector2(640, 510);
+            var panelImage = panel.GetComponent<UnityEngine.UI.Image>();
+            panelImage.sprite = hudPanelSprite;
+            panelImage.type = UnityEngine.UI.Image.Type.Sliced;
+            panelImage.pixelsPerUnitMultiplier = 3;
+            Text(panel.transform, title, new Vector2(.5f, .77f), new Vector2(550, 90), 40).fontStyle = FontStyles.Bold;
+            Text(panel.transform, message, new Vector2(.5f, .5f), new Vector2(540, 140), 26);
+            Button(panel.transform, button, new Vector2(.5f, .22f), new Vector2(320, 85), action);
         }
 
         private void OnDestroy()
@@ -735,8 +806,6 @@ namespace BlockShooter
             StopAllCoroutines();
             Time.timeScale = 1;
             foreach (var material in _materials) if (material != null) Destroy(material);
-            if (_hudSprite != null) Destroy(_hudSprite);
-            if (_hudTexture != null) Destroy(_hudTexture);
         }
     }
 }

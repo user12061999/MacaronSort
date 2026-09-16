@@ -222,10 +222,9 @@ namespace BlockShooter.Editor
             tray.levelColor = color;
             tray.stackLayer = layer;
             tray.mystery = mystery;
-            int paletteIndex = System.Array.IndexOf(new[] { BlockColorType.Red, BlockColorType.Green, BlockColorType.Yellow,
-                BlockColorType.Blue, BlockColorType.Purple, BlockColorType.Orange }, color);
-            Color tint = factory.macaronPrefabs[paletteIndex].GetComponent<Renderer>().sharedMaterial.color;
-            var material = Material("Tray_" + color, tint);
+            Color tint = factory.TrayColor(color);
+            var material = factory.ColorRegistry != null ? factory.ColorRegistry.GetTrayMaterial(color) : null;
+            if (material == null) material = Material("Tray_" + color, tint);
             foreach (var renderer in tray.tintRenderers)
             {
                 var materials = renderer.sharedMaterials;
