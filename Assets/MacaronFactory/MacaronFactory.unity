@@ -305,6 +305,16 @@ MonoBehaviour:
   hudButtonPressedSprite: {fileID: 21300000, guid: 6eaec966e6b214f5e87092fc5de3cc5f, type: 3}
   hudPanelSprite: {fileID: 21300000, guid: a778b1b935d9346a58cb4e03ec4ca19f, type: 3}
   hudFont: {fileID: 11400000, guid: 607a42e3e90f14eecaf065ce4e7a9115, type: 2}
+  hudSettingIcon: {fileID: 21300000, guid: 32c0194da8e454a11b1ce4ce91547299, type: 3}
+  hudRetryIcon: {fileID: 21300000, guid: c7b4f4c9850d3432b9e5583a74892628, type: 3}
+  hudSoundOnIcon: {fileID: 21300000, guid: a2691c503c1cd4b978dfb17dcd9b7c6a, type: 3}
+  hudSoundOffIcon: {fileID: 21300000, guid: 1a25058de779e4a74a9371517b33903d, type: 3}
+  hudHapticIcon: {fileID: 21300000, guid: cde16e16feb4dfc49b9b6f5708ca74ce, type: 3}
+  hudCoinIcon: {fileID: 21300000, guid: 841360acfd60a44469cbb498250ec91f, type: 3}
+  hudCloseIcon: {fileID: 21300000, guid: 909a9e27dfe454e7f8eb7821b9fea7b9, type: 3}
+  hudHomeIcon: {fileID: 21300000, guid: fae929e183e704256b7059d786abd832, type: 3}
+  hudGreenButtonSprite: {fileID: 21300000, guid: e2101b52a262d49a3adf1e0fe48b6129, type: 3}
+  hudGreenButtonPressedSprite: {fileID: 21300000, guid: 3c4e5ad54aa17436ea550264b33ea00b, type: 3}
   conveyorSource: {fileID: 3106933310930561449, guid: 515137003caa54646adb1465f557790e, type: 3}
   levels:
   - {fileID: 8771080922117147080, guid: a408b63c445714649bae5b512fd9cbf8, type: 3}
@@ -346,6 +356,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   macaronExitJumpHeight: 1
+  macaronExitStagger: 0.08
   macaronExitSpeed: 0.1
   macaronExitScaleMultiplier: 2
   trayJumpTime: 0.4
@@ -381,7 +392,7 @@ MonoBehaviour:
   trayInvalidClickAngle: 6
   trayReceiveScaleMultiplier: 1.2
   trayReceiveBounceTime: 0.1
-  coveredTrayDarkness: 0.18
+  coveredTrayDarkness: 0.538
   stageOverride: 4
   unlockSlotCost: 100
   shippingReward: 50

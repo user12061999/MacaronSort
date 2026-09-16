@@ -47,6 +47,11 @@ namespace BlockShooter
                         main.stopAction = ParticleSystemStopAction.None;
                         particle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                     }
+                    foreach (var audio in go.GetComponentsInChildren<AudioSource>(true))
+                    {
+                        audio.playOnAwake = false;
+                        audio.Stop();
+                    }
                     go.SetActive(false);
                     _effects.Add(new Effect { root = go, particles = particles, cue = cue });
                 }

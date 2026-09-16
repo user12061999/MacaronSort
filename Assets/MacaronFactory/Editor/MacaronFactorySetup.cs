@@ -71,6 +71,35 @@ namespace BlockShooter.Editor
             int[] colors = { 2, 4, 3, 6, 7, 1 };
             factory.macaronPrefabs = colors.Select(i => AssetDatabase.LoadAssetAtPath<GameObject>(
                 $"Assets/Macaron_Props/Prefabs/Macaron_{i}.prefab")).ToArray();
+            factory.AutoAssignSprites();
+            ConfigureFeedback(factory.feedback);
+        }
+
+        public static void ConfigureFeedback(MacaronFeedbackPlayer player)
+        {
+            if (player == null || player.config == null) return;
+            var config = player.config;
+            var clickPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Epic Toon FX/Prefabs/Combat/Explosions (Misc)/clickEffect.prefab");
+            var fillPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Epic Toon FX/Prefabs/Combat/Explosions (Text)/FillComplete.prefab");
+            var smokePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/JMO Assets/Cartoon FX (legacy)/CFX Prefabs/Smoke/CFX_Sole_Smoke.prefab");
+
+            foreach (var cue in config.cues)
+            {
+                if (cue.trigger == MacaronFeedbackEvent.SelectTray || cue.trigger == MacaronFeedbackEvent.InvalidTray)
+                {
+                    if (clickPrefab != null) { cue.effectPrefab = clickPrefab; cue.effectScale = 0.35f; cue.cooldown = 0.05f; cue.poolSize = 4; }
+                }
+                else if (cue.trigger == MacaronFeedbackEvent.CakeLanded)
+                {
+                    if (smokePrefab != null) { cue.effectPrefab = smokePrefab; cue.effectScale = 0.45f; cue.cooldown = 0.03f; cue.poolSize = 6; cue.offset = new Vector3(0, 0.05f, 0); }
+                }
+                else if (cue.trigger == MacaronFeedbackEvent.TrayPacked)
+                {
+                    if (fillPrefab != null) { cue.effectPrefab = fillPrefab; cue.effectScale = 0.55f; cue.offset = new Vector3(0, 0.35f, 0); }
+                }
+            }
+            EditorUtility.SetDirty(config);
+            AssetDatabase.SaveAssets();
         }
 
         private static MacaronTray CreateTrayPrefab(string size)

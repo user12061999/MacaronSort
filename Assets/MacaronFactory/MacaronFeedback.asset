@@ -18,24 +18,24 @@ MonoBehaviour:
   mixerGroup: {fileID: 0}
   cues:
   - trigger: 0
-    effectPrefab: {fileID: 0}
+    effectPrefab: {fileID: 193104, guid: c2f28a236b0696a4f90a994422019577, type: 3}
     sound: {fileID: 8300000, guid: 47e2d47af44a080498d60b38566902b3, type: 3}
     volume: 0.65
     pitch: 1
-    effectScale: 0.3
+    effectScale: 0.35
     offset: {x: 0, y: 0.15, z: 0}
-    poolSize: 2
-    cooldown: 0.12
+    poolSize: 4
+    cooldown: 0.05
     maxDuration: 5
   - trigger: 1
-    effectPrefab: {fileID: 0}
+    effectPrefab: {fileID: 193104, guid: c2f28a236b0696a4f90a994422019577, type: 3}
     sound: {fileID: 8300000, guid: 5d7e939f7e7d6ea46a7218527405215b, type: 3}
     volume: 0.65
     pitch: 1
-    effectScale: 0.3
+    effectScale: 0.35
     offset: {x: 0, y: 0.15, z: 0}
-    poolSize: 2
-    cooldown: 0.12
+    poolSize: 4
+    cooldown: 0.05
     maxDuration: 5
   - trigger: 2
     effectPrefab: {fileID: 0}
@@ -48,22 +48,22 @@ MonoBehaviour:
     cooldown: 0.12
     maxDuration: 5
   - trigger: 3
-    effectPrefab: {fileID: 0}
+    effectPrefab: {fileID: 100000, guid: a381ded06c204a54e909a18e574f7436, type: 3}
     sound: {fileID: 8300000, guid: 7bfed57c046fc2f43b21fa69eb0a351a, type: 3}
     volume: 0.35
     pitch: 1
-    effectScale: 0.15
-    offset: {x: 0, y: 0.15, z: 0}
-    poolSize: 4
-    cooldown: 0.09
+    effectScale: 0.45
+    offset: {x: 0, y: 0.05, z: 0}
+    poolSize: 6
+    cooldown: 0.03
     maxDuration: 5
   - trigger: 4
-    effectPrefab: {fileID: 8680598818964007281, guid: dcd90c4976197424b9958a7c54b6bb8c, type: 3}
+    effectPrefab: {fileID: 1887589919947958, guid: 0ccae7cf71231634c8eaaf9dd7c17754, type: 3}
     sound: {fileID: 8300000, guid: b1e1db7b8943a244cb40a6be1da6beb9, type: 3}
     volume: 0.65
     pitch: 1
-    effectScale: 0.3
-    offset: {x: 0, y: 0.15, z: 0}
+    effectScale: 0.55
+    offset: {x: 0, y: 0.35, z: 0}
     poolSize: 2
     cooldown: 0.12
     maxDuration: 5

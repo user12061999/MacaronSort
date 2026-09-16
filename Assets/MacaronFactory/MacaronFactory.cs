@@ -20,6 +20,17 @@ namespace BlockShooter
         public Sprite hudButtonPressedSprite;
         public Sprite hudPanelSprite;
         public TMP_FontAsset hudFont;
+        [Header("GUI-SimpleRound Icons & Popups")]
+        public Sprite hudSettingIcon;
+        public Sprite hudRetryIcon;
+        public Sprite hudSoundOnIcon;
+        public Sprite hudSoundOffIcon;
+        public Sprite hudHapticIcon;
+        public Sprite hudCoinIcon;
+        public Sprite hudCloseIcon;
+        public Sprite hudHomeIcon;
+        public Sprite hudGreenButtonSprite;
+        public Sprite hudGreenButtonPressedSprite;
         [Header("Existing package conveyor")]
         public LevelRoot conveyorSource;
         [Header("Hand-authored levels (played in list order)")]
@@ -96,6 +107,7 @@ namespace BlockShooter
         private readonly Renderer[] _slotPads = new Renderer[6];
         private TextMeshProUGUI _status, _coins, _progress, _stageText;
         private RectTransform _overlay;
+        private RectTransform _settingOverlay;
         private RectTransform _hudRoot;
         private int _remaining, _transfers, _shipped;
         private float _deadlockTime, _noticeUntil, _speedMultiplier = 1;
@@ -107,6 +119,42 @@ namespace BlockShooter
             BlockColorType.Red, BlockColorType.Green, BlockColorType.Yellow,
             BlockColorType.Blue, BlockColorType.Purple, BlockColorType.Orange
         };
+
+#if UNITY_EDITOR
+        private void Reset() => AutoAssignSprites();
+
+        public void AutoAssignSprites()
+        {
+            if (hudButtonSprite == null)
+                hudButtonSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/Button/Btn_Oval00_Sky_n.png");
+            if (hudButtonPressedSprite == null)
+                hudButtonPressedSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/Button/Btn_Oval00_Sky_s.png");
+            if (hudPanelSprite == null)
+                hudPanelSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/Popup/Popup02.png");
+            if (hudFont == null)
+                hudFont = UnityEditor.AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/GUI-SimpleRound/ResourceData/Font/BalooThambi-Regular SDF.asset");
+            if (hudSettingIcon == null)
+                hudSettingIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_setting.png");
+            if (hudRetryIcon == null)
+                hudRetryIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_retry.png");
+            if (hudSoundOnIcon == null)
+                hudSoundOnIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_sound_on.png");
+            if (hudSoundOffIcon == null)
+                hudSoundOffIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_sound_off.png");
+            if (hudHapticIcon == null)
+                hudHapticIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Project Files/Game/2D/Vibration.png");
+            if (hudCoinIcon == null)
+                hudCoinIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_coin.png");
+            if (hudCloseIcon == null)
+                hudCloseIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_close.png");
+            if (hudHomeIcon == null)
+                hudHomeIcon = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/ButtonIcons/ButtonIcon_Blue/btn_blue_home.png");
+            if (hudGreenButtonSprite == null)
+                hudGreenButtonSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/Button/Btn_Oval00_Green_n.png");
+            if (hudGreenButtonPressedSprite == null)
+                hudGreenButtonPressedSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/GUI-SimpleRound/ResourceData/Sprites/Components/Button/Btn_Oval00_Green_s.png");
+        }
+#endif
 
         private void Awake()
         {
@@ -266,6 +314,7 @@ namespace BlockShooter
         private void Update()
         {
             if (!_ready || !GameManager.Instance.IsPlaying) return;
+            HandleClickParticle();
             var conveyor = Level.conveyorController;
             if (conveyor.IsFrozen) return;
             _conveyorFlow.Tick(conveyorSpeed * _speedMultiplier, exitZoneLength, stopBeforeExitDistance);
@@ -293,14 +342,33 @@ namespace BlockShooter
             if (IsDeadlocked())
             {
                 _deadlockTime += Time.deltaTime;
-                _status.text = "No matching tray. Unlock another slot!";
+                if (_status != null) _status.text = "No matching tray. Unlock another slot!";
                 if (_deadlockTime >= deadlockDelay) Finish(false);
             }
             else
             {
                 _deadlockTime = 0;
-                if (Time.time >= _noticeUntil) _status.text = _layout != null && !string.IsNullOrWhiteSpace(_layout.instruction)
-                    ? _layout.instruction : "Choose a tray for the front macarons.";
+                if (Time.time >= _noticeUntil && _status != null) _status.text = "";
+            }
+        }
+
+        private void HandleClickParticle()
+        {
+            if (!Input.GetMouseButtonDown(0)) return;
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+            var cam = Camera.main;
+            if (cam == null) return;
+            var ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, 50f))
+            {
+                if (hit.collider.GetComponentInParent<MacaronTray>() == null)
+                    feedback?.Play(MacaronFeedbackEvent.SelectTray, hit.point);
+            }
+            else
+            {
+                var plane = new Plane(Vector3.up, new Vector3(0, .1f, 0));
+                if (plane.Raycast(ray, out float enter))
+                    feedback?.Play(MacaronFeedbackEvent.SelectTray, ray.GetPoint(enter));
             }
         }
 
@@ -512,11 +580,11 @@ namespace BlockShooter
                 yield return null;
 
             ShowOverlay(win ? "ORDER COMPLETE!" : "PACKING JAM!",
-                win ? $"Every macaron shipped. +{shippingReward} coins" : "All open slots are full. The arriving colors do not match.",
+                win ? "All delicious macarons shipped!" : "All open slots are full.\nThe arriving colors do not match.",
                 win ? "NEXT STAGE" : "TRY AGAIN", () => {
                     if (win) Stage++;
                     Reload();
-                });
+                }, isWin: win);
         }
 
         private void Reload()
@@ -532,14 +600,22 @@ namespace BlockShooter
 
         private void UpdateHud()
         {
-            _coins.text = $"COINS  {SaveManager.Coins}";
-            _stageText.text = $"STAGE {Stage:00}";
-            _progress.text = $"<b>{_remaining}</b>\nMacarons left";
+            if (_coins != null) _coins.text = SaveManager.Coins.ToString();
+            if (_stageText != null) _stageText.text = $"STAGE {Stage:00}";
+            if (_progress != null) _progress.text = $"<b><size=34>{_remaining}</size></b>\n<size=20>Macarons left</size>";
             for (int i = 0; i < 6; i++)
             {
-                _slotLabels[i].text = i < OpenSlots ? "" : i == OpenSlots ? $"+\n{unlockSlotCost}" : "LOCKED";
-                _slotLabels[i].GetComponentInParent<Button>().interactable = i == OpenSlots;
-                _slotPads[i].sharedMaterial = i < OpenSlots ? PaperMaterial : ShadowMaterial;
+                if (_slotLabels[i] != null)
+                {
+                    _slotLabels[i].text = i < OpenSlots ? "" : i == OpenSlots ? $"+\n{unlockSlotCost}" : "LOCKED";
+                    _slotLabels[i].fontSize = 20;
+                    _slotLabels[i].fontStyle = FontStyles.Bold;
+                    _slotLabels[i].GetComponentInParent<Button>().interactable = i == OpenSlots;
+                }
+                if (_slotPads[i] != null)
+                {
+                    _slotPads[i].sharedMaterial = i < OpenSlots ? PaperMaterial : ShadowMaterial;
+                }
             }
         }
 
@@ -661,23 +737,105 @@ namespace BlockShooter
             return tmp;
         }
 
+        private GameObject Panel(Transform parent, Vector2 anchor, Vector2 size, Sprite sprite = null, Color? color = null)
+        {
+            var go = new GameObject("Panel", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = rect.anchorMax = anchor;
+            rect.sizeDelta = size;
+            var img = go.GetComponent<Image>();
+            img.sprite = sprite != null ? sprite : hudPanelSprite;
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = 3;
+            img.color = color ?? Color.white;
+            return go;
+        }
+
+        private Button IconButton(Transform parent, Sprite icon, Vector2 anchor, Vector2 size, UnityEngine.Events.UnityAction action, string fallbackText = "⚙")
+        {
+            var go = new GameObject("IconButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = rect.anchorMax = anchor;
+            rect.sizeDelta = size;
+            var img = go.GetComponent<Image>();
+            img.color = Color.white;
+            img.sprite = hudButtonSprite;
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = 3;
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = img;
+            button.transition = Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState { pressedSprite = hudButtonPressedSprite };
+            button.onClick.AddListener(action);
+
+            if (icon != null)
+            {
+                var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+                iconGo.transform.SetParent(go.transform, false);
+                var iconRect = (RectTransform)iconGo.transform;
+                iconRect.anchorMin = Vector2.zero;
+                iconRect.anchorMax = Vector2.one;
+                iconRect.offsetMin = new Vector2(8, 8);
+                iconRect.offsetMax = new Vector2(-8, -8);
+                var iconImg = iconGo.GetComponent<Image>();
+                iconImg.sprite = icon;
+                iconImg.preserveAspect = true;
+                iconImg.raycastTarget = false;
+            }
+            else
+            {
+                var t = Text(go.transform, fallbackText, new Vector2(.5f, .5f), size, 22);
+                t.color = new Color(.12f, .22f, .3f);
+            }
+            return button;
+        }
+
         private Button Button(Transform parent, string text, Vector2 anchor, Vector2 size, UnityEngine.Events.UnityAction action)
+            => StyledButton(parent, text, anchor, size, action, null, null, null);
+
+        private Button StyledButton(Transform parent, string text, Vector2 anchor, Vector2 size, UnityEngine.Events.UnityAction action,
+            Sprite customSprite = null, Sprite customPressed = null, Sprite icon = null)
         {
             var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
             var rect = (RectTransform)go.transform;
             rect.anchorMin = rect.anchorMax = anchor;
             rect.sizeDelta = size;
-            go.GetComponent<Image>().color = Color.white;
-            go.GetComponent<Image>().sprite = hudButtonSprite;
-            go.GetComponent<Image>().type = Image.Type.Sliced;
-            go.GetComponent<Image>().pixelsPerUnitMultiplier = 3;
+            var img = go.GetComponent<Image>();
+            img.color = Color.white;
+            img.sprite = customSprite != null ? customSprite : hudButtonSprite;
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = 3;
             var button = go.GetComponent<Button>();
-            button.targetGraphic = go.GetComponent<Image>();
-            button.transition = UnityEngine.UI.Selectable.Transition.SpriteSwap;
-            button.spriteState = new SpriteState { pressedSprite = hudButtonPressedSprite };
-            button.onClick.AddListener(action);
-            Text(go.transform, text, new Vector2(.5f, .5f), size, 20).color = new Color(.12f, .22f, .3f);
+            button.targetGraphic = img;
+            button.transition = Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState { pressedSprite = customPressed != null ? customPressed : hudButtonPressedSprite };
+            if (action != null) button.onClick.AddListener(action);
+
+            if (icon != null)
+            {
+                var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+                iconGo.transform.SetParent(go.transform, false);
+                var iconRect = (RectTransform)iconGo.transform;
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.18f, 0.5f);
+                iconRect.sizeDelta = new Vector2(34, 34);
+                var iconImg = iconGo.GetComponent<Image>();
+                iconImg.sprite = icon;
+                iconImg.preserveAspect = true;
+                iconImg.raycastTarget = false;
+
+                var txt = Text(go.transform, text, new Vector2(.58f, .5f), new Vector2(size.x - 50, size.y), 24);
+                txt.fontStyle = FontStyles.Bold;
+                txt.color = new Color(.12f, .22f, .3f);
+            }
+            else
+            {
+                var txt = Text(go.transform, text ?? "", new Vector2(.5f, .5f), size, 24);
+                txt.fontStyle = FontStyles.Bold;
+                txt.color = new Color(.12f, .22f, .3f);
+            }
             return button;
         }
 
@@ -696,58 +854,181 @@ namespace BlockShooter
             safeRoot.transform.SetParent(canvas.transform, false);
             _hudRoot = (RectTransform)safeRoot.transform;
             canvas = safeRoot;
-            _stageText = Text(canvas.transform, "", new Vector2(.5f, .965f), new Vector2(210, 48), 28);
+
+            // Settings Button (Top-Left)
+            IconButton(canvas.transform, hudSettingIcon, new Vector2(.09f, .962f), new Vector2(58, 58), OpenSettings, "⚙");
+
+            // Level Badge (Top-Center)
+            var levelBadge = Panel(canvas.transform, new Vector2(.5f, .962f), new Vector2(240, 56), hudButtonSprite);
+            _stageText = Text(levelBadge.transform, $"STAGE {Stage:00}", new Vector2(.5f, .5f), new Vector2(230, 50), 32);
             _stageText.fontStyle = FontStyles.Bold;
-            _stageText.color = Color.white;
-            var levelBadge = new GameObject("Level badge", typeof(RectTransform), typeof(Image));
-            levelBadge.transform.SetParent(canvas.transform, false);
-            var badgeRect = (RectTransform)levelBadge.transform;
-            badgeRect.anchorMin = badgeRect.anchorMax = new Vector2(.5f, .965f);
-            badgeRect.sizeDelta = new Vector2(216, 50);
-            levelBadge.GetComponent<Image>().sprite = hudButtonSprite;
-            levelBadge.GetComponent<Image>().type = Image.Type.Sliced;
-            levelBadge.GetComponent<Image>().pixelsPerUnitMultiplier = 3;
-            levelBadge.GetComponent<Image>().color = Color.white;
             _stageText.color = new Color(.12f, .22f, .3f);
-            levelBadge.transform.SetAsFirstSibling();
-            _coins = Text(canvas.transform, "", new Vector2(.85f, .965f), new Vector2(170, 42), 23);
-            _progress = Text(canvas.transform, "", new Vector2(.25f, .61f), new Vector2(130, 70), 20);
-            _progress.color = new Color(1, .93f, .7f);
-            _status = Text(canvas.transform, "", new Vector2(.5f, .102f), new Vector2(660, 42), 17);
+
+            // Coins Display (Top-Right)
+            var coinBadge = Panel(canvas.transform, new Vector2(.86f, .962f), new Vector2(164, 52), hudButtonSprite);
+            if (hudCoinIcon != null)
+            {
+                var cGo = new GameObject("Coin Icon", typeof(RectTransform), typeof(Image));
+                cGo.transform.SetParent(coinBadge.transform, false);
+                var cRect = (RectTransform)cGo.transform;
+                cRect.anchorMin = cRect.anchorMax = new Vector2(.22f, .5f);
+                cRect.sizeDelta = new Vector2(34, 34);
+                var cImg = cGo.GetComponent<Image>();
+                cImg.sprite = hudCoinIcon;
+                cImg.preserveAspect = true;
+                cImg.raycastTarget = false;
+            }
+            _coins = Text(coinBadge.transform, SaveManager.Coins.ToString(), new Vector2(.64f, .5f), new Vector2(100, 44), 26);
+            _coins.fontStyle = FontStyles.Bold;
+            _coins.color = new Color(.12f, .22f, .3f);
+
+            // Progress / Macarons Left Badge
+            var progressBg = Panel(canvas.transform, new Vector2(.25f, .61f), new Vector2(180, 84), hudButtonSprite);
+            progressBg.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
+            _progress = Text(progressBg.transform, "", new Vector2(.5f, .5f), new Vector2(170, 76), 20);
+            _progress.color = new Color(.12f, .22f, .3f);
+
+            // Floating Status Line (Placed higher to avoid conveyor overlap, empty when idle)
+            _status = Text(canvas.transform, "", new Vector2(.5f, .912f), new Vector2(620, 40), 20);
+            _status.fontStyle = FontStyles.Bold;
+            _status.color = new Color(.35f, .20f, .28f);
+
+            // Floating slot buttons over 3D slots
+            var cam = Camera.main;
             for (int i = 0; i < 6; i++)
             {
                 int index = i;
-                var button = Button(canvas.transform, "", new Vector2(.5f, .5f), new Vector2(72, 42),
+                var button = Button(canvas.transform, "", new Vector2(.5f, .5f), new Vector2(88, 52),
                     () => { if (index >= OpenSlots) TryUnlockSlot(); });
                 _slotLabels[i] = button.GetComponentInChildren<TextMeshProUGUI>();
-                _slotLabels[i].fontSize = 15;
+                if (_slotLabels[i] != null)
+                {
+                    _slotLabels[i].fontSize = 20;
+                    _slotLabels[i].fontStyle = FontStyles.Bold;
+                }
                 button.GetComponent<Image>().color = Color.clear;
-                var screen = Camera.main.WorldToViewportPoint(SlotPosition(i) + Vector3.back * .48f);
+                var screen = cam != null ? cam.WorldToViewportPoint(SlotPosition(i) + Vector3.back * .48f) : new Vector3(.5f, .5f, 0);
                 var rect = (RectTransform)button.transform;
                 rect.anchorMin = rect.anchorMax = new Vector2(screen.x, screen.y);
             }
-            Button(canvas.transform, "RETRY", new Vector2(.19f, .043f), new Vector2(180, 58), Reload);
-            var speed = Button(canvas.transform, "SPEED x1", new Vector2(.5f, .043f), new Vector2(180, 58), () => { });
-            speed.onClick.AddListener(() => {
-                if (!GameManager.Instance.IsPlaying) return;
-                _speedMultiplier = _speedMultiplier > 1 ? 1 : 2;
-                Level.conveyorController.speed = conveyorSpeed * _speedMultiplier;
-                speed.GetComponentInChildren<TextMeshProUGUI>().text = _speedMultiplier > 1 ? "SPEED x2" : "SPEED x1";
-            });
-            Button(canvas.transform, "PAUSE", new Vector2(.81f, .043f), new Vector2(180, 58), () => {
-                if (!GameManager.Instance.IsPlaying) return;
-                GameManager.Instance.SetState(GameState.Paused);
-                Time.timeScale = 0;
-                ShowOverlay("TEA BREAK", "Your macarons can wait.", "RESUME", () => {
-                    Destroy(_overlay.gameObject);
-                    Time.timeScale = 1;
-                    GameManager.Instance.SetState(GameState.Playing);
-                });
-            });
+
+            // Note: Bottom bar UI is removed completely for full playing field visibility.
             _overlay = new GameObject("Overlay anchor", typeof(RectTransform)).GetComponent<RectTransform>();
             _overlay.SetParent(canvas.transform, false);
             _overlay.gameObject.SetActive(false);
             PositionHudMarkers();
+        }
+
+        public void OpenSettings()
+        {
+            if (_settingOverlay != null) return;
+            if (GameManager.Instance.State == GameState.Win || GameManager.Instance.State == GameState.Fail) return;
+
+            GameManager.Instance.SetState(GameState.Paused);
+            Time.timeScale = 0f;
+
+            var canvas = GetComponentInChildren<Canvas>();
+            if (canvas == null) return;
+
+            var overlayGo = new GameObject("Settings Overlay", typeof(RectTransform), typeof(Image));
+            overlayGo.transform.SetParent(canvas.transform, false);
+            _settingOverlay = (RectTransform)overlayGo.transform;
+            _settingOverlay.anchorMin = Vector2.zero;
+            _settingOverlay.anchorMax = Vector2.one;
+            _settingOverlay.offsetMin = _settingOverlay.offsetMax = Vector2.zero;
+            overlayGo.GetComponent<Image>().color = new Color(.08f, .1f, .15f, .78f);
+
+            var panel = new GameObject("Settings Panel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(_settingOverlay, false);
+            var panelRect = (RectTransform)panel.transform;
+            panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
+            panelRect.sizeDelta = new Vector2(560, 620);
+            var panelImg = panel.GetComponent<Image>();
+            panelImg.sprite = hudPanelSprite;
+            panelImg.type = Image.Type.Sliced;
+            panelImg.pixelsPerUnitMultiplier = 3;
+
+            // Title
+            var title = Text(panel.transform, "SETTINGS", new Vector2(.5f, .87f), new Vector2(400, 60), 40);
+            title.fontStyle = FontStyles.Bold;
+            title.color = new Color(.12f, .22f, .3f);
+
+            // Close Button 'X'
+            IconButton(panel.transform, hudCloseIcon, new Vector2(.88f, .88f), new Vector2(46, 46), CloseSettings, "✕");
+
+            // Sound Button
+            bool soundOn = PlayerPrefs.GetInt("SoundButton", 0) == 0;
+            var soundBtn = StyledButton(panel.transform, soundOn ? "SOUND: ON" : "SOUND: OFF", new Vector2(.5f, .69f), new Vector2(360, 64), null,
+                icon: soundOn ? hudSoundOnIcon : hudSoundOffIcon);
+            var soundText = soundBtn.GetComponentInChildren<TextMeshProUGUI>();
+            var soundIconImg = soundBtn.transform.Find("Icon")?.GetComponent<Image>();
+            soundBtn.onClick.AddListener(() =>
+            {
+                int cur = PlayerPrefs.GetInt("SoundButton", 0);
+                int next = cur == 0 ? 1 : 0;
+                PlayerPrefs.SetInt("SoundButton", next);
+                PlayerPrefs.Save();
+                AudioListener.volume = next == 0 ? 1f : 0f;
+                if (EKStudio.Audio.AudioController.Instance != null)
+                    EKStudio.Audio.AudioController.Instance.IsMasterMuted = (next != 0);
+                bool isOn = next == 0;
+                if (soundText != null) soundText.text = isOn ? "SOUND: ON" : "SOUND: OFF";
+                if (soundIconImg != null) soundIconImg.sprite = isOn ? hudSoundOnIcon : hudSoundOffIcon;
+            });
+
+            // Haptic Button
+            bool hapticOn = PlayerPrefs.GetInt("HapticButton", 0) == 0;
+            var hapticBtn = StyledButton(panel.transform, hapticOn ? "HAPTIC: ON" : "HAPTIC: OFF", new Vector2(.5f, .54f), new Vector2(360, 64), null,
+                icon: hudHapticIcon);
+            var hapticText = hapticBtn.GetComponentInChildren<TextMeshProUGUI>();
+            hapticBtn.onClick.AddListener(() =>
+            {
+                int cur = PlayerPrefs.GetInt("HapticButton", 0);
+                int next = cur == 0 ? 1 : 0;
+                PlayerPrefs.SetInt("HapticButton", next);
+                PlayerPrefs.SetInt("IsHapticOpen", next == 0 ? 1 : 0);
+                PlayerPrefs.Save();
+                bool isOn = next == 0;
+                if (hapticText != null) hapticText.text = isOn ? "HAPTIC: ON" : "HAPTIC: OFF";
+            });
+
+            // Retry Button (Requested: Retry placed in Settings Popup)
+            StyledButton(panel.transform, "RETRY STAGE", new Vector2(.5f, .38f), new Vector2(360, 66), () =>
+            {
+                Time.timeScale = 1f;
+                Reload();
+            }, icon: hudRetryIcon);
+
+            // Resume Button
+            var resumeBtn = StyledButton(panel.transform, "RESUME", new Vector2(.5f, .20f), new Vector2(360, 68), CloseSettings,
+                customSprite: hudGreenButtonSprite, customPressed: hudGreenButtonPressedSprite);
+            var resumeText = resumeBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (resumeText != null)
+            {
+                resumeText.color = Color.white;
+                resumeText.fontStyle = FontStyles.Bold;
+                resumeText.fontSize = 28;
+            }
+
+            // Animate In
+            panel.transform.localScale = Vector3.zero;
+            panel.transform.DOScale(Vector3.one, 0.25f).SetEase(Ease.OutBack).SetUpdate(true);
+        }
+
+        public void CloseSettings()
+        {
+            if (_settingOverlay == null) return;
+            var panel = _settingOverlay.GetChild(0);
+            panel.DOScale(Vector3.zero, 0.18f).SetEase(Ease.InQuad).SetUpdate(true).OnComplete(() =>
+            {
+                if (_settingOverlay != null)
+                {
+                    Destroy(_settingOverlay.gameObject);
+                    _settingOverlay = null;
+                }
+                Time.timeScale = 1f;
+                GameManager.Instance.SetState(GameState.Playing);
+            });
         }
 
         private void LateUpdate()
@@ -757,6 +1038,8 @@ namespace BlockShooter
 
         private void PositionHudMarkers()
         {
+            var cam = Camera.main;
+            if (cam == null) return;
             Rect safe = Screen.safeArea;
             if (safe.width <= 0) safe = new Rect(0, 0, Screen.width, Screen.height);
             _hudRoot.anchorMin = new Vector2(safe.xMin / Screen.width, safe.yMin / Screen.height);
@@ -764,41 +1047,111 @@ namespace BlockShooter
             _hudRoot.offsetMin = _hudRoot.offsetMax = Vector2.zero;
             for (int i = 0; i < 6; i++)
             {
-                Vector3 screen = Camera.main.WorldToScreenPoint(SlotPosition(i));
+                if (_slotLabels[i] == null) continue;
+                Vector3 screen = cam.WorldToScreenPoint(SlotPosition(i));
                 var rect = (RectTransform)_slotLabels[i].transform.parent;
                 rect.anchorMin = rect.anchorMax = new Vector2((screen.x - safe.xMin) / safe.width, (screen.y - safe.yMin) / safe.height);
             }
-            if (_layout != null)
+            if (_layout != null && _progress != null)
             {
-                Vector3 screen = Camera.main.WorldToScreenPoint(_layout.counterAnchor.position);
-                _progress.rectTransform.anchorMin = _progress.rectTransform.anchorMax =
+                Vector3 screen = cam.WorldToScreenPoint(_layout.counterAnchor.position);
+                var pRect = (RectTransform)_progress.transform.parent;
+                pRect.anchorMin = pRect.anchorMax =
                     new Vector2((screen.x - safe.xMin) / safe.width, (screen.y - safe.yMin) / safe.height);
             }
         }
 
-        private void ShowOverlay(string title, string message, string button, UnityEngine.Events.UnityAction action)
+        private void ShowOverlay(string title, string message, string button, UnityEngine.Events.UnityAction action, bool isWin = false)
         {
             var canvas = GetComponentInChildren<Canvas>();
+            if (canvas == null) return;
             if (_overlay != null) Destroy(_overlay.gameObject);
-            var go = new GameObject("Result", typeof(RectTransform), typeof(Image));
+
+            var go = new GameObject("Result Overlay", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(canvas.transform, false);
             _overlay = (RectTransform)go.transform;
             _overlay.anchorMin = Vector2.zero;
             _overlay.anchorMax = Vector2.one;
             _overlay.offsetMin = _overlay.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(.12f, .15f, .2f, .75f);
-            var panel = new GameObject("SimpleRound panel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            go.GetComponent<Image>().color = new Color(.08f, .1f, .15f, .78f);
+
+            var panel = new GameObject("Result Panel", typeof(RectTransform), typeof(Image));
             panel.transform.SetParent(go.transform, false);
             var panelRect = (RectTransform)panel.transform;
             panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
-            panelRect.sizeDelta = new Vector2(640, 510);
-            var panelImage = panel.GetComponent<UnityEngine.UI.Image>();
+            panelRect.sizeDelta = new Vector2(580, 560);
+            var panelImage = panel.GetComponent<Image>();
             panelImage.sprite = hudPanelSprite;
-            panelImage.type = UnityEngine.UI.Image.Type.Sliced;
+            panelImage.type = Image.Type.Sliced;
             panelImage.pixelsPerUnitMultiplier = 3;
-            Text(panel.transform, title, new Vector2(.5f, .77f), new Vector2(550, 90), 40).fontStyle = FontStyles.Bold;
-            Text(panel.transform, message, new Vector2(.5f, .5f), new Vector2(540, 140), 26);
-            Button(panel.transform, button, new Vector2(.5f, .22f), new Vector2(320, 85), action);
+
+            // Header
+            var titleText = Text(panel.transform, title, new Vector2(.5f, .84f), new Vector2(520, 70), 42);
+            titleText.fontStyle = FontStyles.Bold;
+            titleText.color = isWin ? new Color(.1f, .45f, .25f) : new Color(.7f, .15f, .2f);
+
+            // Message description
+            var msgText = Text(panel.transform, message, new Vector2(.5f, .62f), new Vector2(520, 110), 26);
+            msgText.color = new Color(.3f, .22f, .28f);
+
+            if (isWin)
+            {
+                // Reward Badge: Coin Icon + Reward text
+                var rewardPill = new GameObject("Reward Pill", typeof(RectTransform), typeof(Image));
+                rewardPill.transform.SetParent(panel.transform, false);
+                var pillRect = (RectTransform)rewardPill.transform;
+                pillRect.anchorMin = pillRect.anchorMax = new Vector2(.5f, .42f);
+                pillRect.sizeDelta = new Vector2(260, 56);
+                var pillImg = rewardPill.GetComponent<Image>();
+                pillImg.sprite = hudButtonSprite;
+                pillImg.type = Image.Type.Sliced;
+                pillImg.pixelsPerUnitMultiplier = 3;
+
+                if (hudCoinIcon != null)
+                {
+                    var cGo = new GameObject("Coin Icon", typeof(RectTransform), typeof(Image));
+                    cGo.transform.SetParent(rewardPill.transform, false);
+                    var cRect = (RectTransform)cGo.transform;
+                    cRect.anchorMin = cRect.anchorMax = new Vector2(.2f, .5f);
+                    cRect.sizeDelta = new Vector2(34, 34);
+                    var cImg = cGo.GetComponent<Image>();
+                    cImg.sprite = hudCoinIcon;
+                    cImg.preserveAspect = true;
+                    cImg.raycastTarget = false;
+                }
+
+                var rText = Text(rewardPill.transform, $"+{shippingReward} COINS", new Vector2(.62f, .5f), new Vector2(170, 44), 24);
+                rText.fontStyle = FontStyles.Bold;
+                rText.color = new Color(.12f, .22f, .3f);
+
+                // Main Action Button (Next Stage)
+                var btn = StyledButton(panel.transform, button, new Vector2(.5f, .22f), new Vector2(340, 72), action,
+                    customSprite: hudGreenButtonSprite, customPressed: hudGreenButtonPressedSprite);
+                var btnTxt = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnTxt != null)
+                {
+                    btnTxt.color = Color.white;
+                    btnTxt.fontStyle = FontStyles.Bold;
+                    btnTxt.fontSize = 28;
+                }
+                btn.transform.DOPunchScale(Vector3.one * 0.06f, 1.2f, 1, 0.5f).SetLoops(-1).SetUpdate(true);
+            }
+            else
+            {
+                // Main Action Button (Try Again)
+                var btn = StyledButton(panel.transform, button, new Vector2(.5f, .24f), new Vector2(340, 72), action,
+                    icon: hudRetryIcon);
+                var btnTxt = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnTxt != null)
+                {
+                    btnTxt.fontStyle = FontStyles.Bold;
+                    btnTxt.fontSize = 26;
+                }
+            }
+
+            // Animate In
+            panel.transform.localScale = Vector3.zero;
+            panel.transform.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutBack).SetUpdate(true);
         }
 
         private void OnDestroy()

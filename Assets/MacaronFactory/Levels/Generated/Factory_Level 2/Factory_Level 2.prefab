@@ -17387,7 +17387,7 @@ MonoBehaviour:
   - {fileID: 24571863223515586}
   - {fileID: 6473531314281693121}
   collectionGate: {fileID: 0}
-  independentLanePacking: 0
+  independentLanePacking: 1
   loopSpacingMultiplier: 0.5
   feederSpacingMultiplier: 0.9
   trayRoot: {fileID: 8675024363862923166}
