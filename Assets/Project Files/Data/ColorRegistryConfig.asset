@@ -15,12 +15,12 @@ MonoBehaviour:
   colors:
   - colorType: 1
     displayName: Red
-    editorColor: {r: 0.9, g: 0.2, b: 0.2, a: 1}
+    editorColor: {r: 0.99215686, g: 0.043137256, b: 0.09803922, a: 1}
     material: {fileID: 2100000, guid: 0fc20fcd62e0d3843b71686c49294b37, type: 2}
     overrideColor: 1
     trayMaterial: {fileID: 2100000, guid: b5dc26ea55398d94b804af25f412d302, type: 2}
     overrideTrayColor: 1
-    trayColor: {r: 0.90196085, g: 0.20000002, b: 0.20000002, a: 1}
+    trayColor: {r: 0.99215686, g: 0.043137256, b: 0.09803922, a: 1}
   - colorType: 2
     displayName: Blue
     editorColor: {r: 0.2, g: 0.5, b: 0.9, a: 1}
@@ -47,12 +47,12 @@ MonoBehaviour:
     trayColor: {r: 1, g: 0.85098046, b: 0.10196079, a: 1}
   - colorType: 5
     displayName: Purple
-    editorColor: {r: 0.6, g: 0.2, b: 0.9, a: 1}
+    editorColor: {r: 0.7490196, g: 0.2, b: 0.8666667, a: 1}
     material: {fileID: 2100000, guid: f53339c1fe02c9243b37032d1023abf3, type: 2}
     overrideColor: 1
     trayMaterial: {fileID: 2100000, guid: c2e9da1ec42de044e9a446ba8ff94f67, type: 2}
     overrideTrayColor: 1
-    trayColor: {r: 0.6, g: 0.20000002, b: 0.90196085, a: 1}
+    trayColor: {r: 0.7490196, g: 0.20000002, b: 0.8666667, a: 1}
   - colorType: 6
     displayName: Orange
     editorColor: {r: 1, g: 0.55, b: 0.1, a: 1}

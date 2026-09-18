@@ -162,11 +162,13 @@ namespace BlockShooter
                 _join[f] = Mathf.Lerp(_ring.Distances[lo], _ring.Distances[lo + 1], sample - lo);
             }
             int seed = Mathf.Min(rows.Count, capacity);
+            var feederRows = MacaronLevel.BuildFeederAssignments(rows.SelectMany(row => row.Select(block => block.ColorType)).ToList(),
+                lanes, seed, feeders.Length);
             for (int row = 0; row < rows.Count; row++)
             {
                 groups[row].gameObject.SetActive(true);
                 if (row < seed) _occupants[row] = row;
-                else _queues[(row - seed) % feeders.Length].Enqueue(row);
+                else _queues[feederRows.feeder[row]].Enqueue(row);
             }
             Place();
         }
@@ -189,7 +191,8 @@ namespace BlockShooter
             var ring = new Path(level.conveyorPath);
             float lanes = Mathf.Max(level.laneSpacing, diameter + .015f);
             float spacing = Mathf.Max(level.rowSpacing, diameter * 1.08f + .015f);
-            int count = level.BuildMacaronOrder().Count;
+            var colors = level.BuildMacaronOrder();
+            int count = colors.Count;
             int rows = Mathf.CeilToInt((float)count / level.columns);
             int capacity = Capacity(ring, spacing, lanes, level.columns, diameter, level.loopSpacingMultiplier);
             int seed = Mathf.Min(rows, capacity);
@@ -197,6 +200,7 @@ namespace BlockShooter
             var feeders = level.feederBranches.Select(f => new Path(f.GetComponent<SplineContainer>())).ToArray();
             if (level.conveyorPath.Spline.Closed && feeders.Length == 0 && rows > capacity)
                 throw new InvalidOperationException("The ring cannot hold all cakes without feeders. Enlarge the loop or reduce supply.");
+            var feederRows = MacaronLevel.BuildFeederAssignments(colors, level.columns, seed, feeders.Length);
             for (int row = 0; row < rows; row++)
             {
                 Path path = ring;
@@ -205,10 +209,10 @@ namespace BlockShooter
                 else if (row < seed) distance = row * ring.Length / capacity;
                 else
                 {
-                    int f = (row - seed) % feeders.Length;
+                    int f = feederRows.feeder[row];
                     path = feeders[f];
                     distance = path.Distances[Mathf.Clamp(Mathf.RoundToInt(level.feederBranches[f].Branch.sweepTo * 512), 0, 512)]
-                        - diameter * .55f - ((row - seed) / feeders.Length) * Mathf.Max(spacing, diameter + .01f)
+                        - diameter * .55f - feederRows.index[row] * Mathf.Max(spacing, diameter + .01f)
                         * Mathf.Clamp(level.feederSpacingMultiplier, .5f, 1.5f);
                 }
                 if (distance < 0) continue;

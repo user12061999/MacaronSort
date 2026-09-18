@@ -29314,7 +29314,7 @@ MonoBehaviour:
   feederBranches:
   - {fileID: 7044669523596058029}
   collectionGate: {fileID: 0}
-  independentLanePacking: 1
+  independentLanePacking: 0
   loopSpacingMultiplier: 0.9
   feederSpacingMultiplier: 0.9
   trayRoot: {fileID: 6645500998721603199}

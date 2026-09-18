@@ -109,6 +109,7 @@ namespace BlockShooter
         private RectTransform _overlay;
         private RectTransform _settingOverlay;
         private RectTransform _hudRoot;
+        private Transform _remainingBadge;
         private int _remaining, _transfers, _shipped;
         private float _deadlockTime, _noticeUntil, _speedMultiplier = 1;
         private bool _ready;
@@ -182,6 +183,8 @@ namespace BlockShooter
             _layout = Instantiate(prefab, transform);
             _layout.name = prefab.name;
             _layout.AlignExitToWaitingSlots();
+            _layout.MoveRemainingBadgeToTraySide();
+            _remainingBadge = _layout.transform.Find("Remaining badge");
             BuildTrays();
             BuildConveyor();
             if (_layout != null)
@@ -882,10 +885,8 @@ namespace BlockShooter
             _coins.fontStyle = FontStyles.Bold;
             _coins.color = new Color(.12f, .22f, .3f);
 
-            // Progress / Macarons Left Badge
-            var progressBg = Panel(canvas.transform, new Vector2(.25f, .61f), new Vector2(180, 84), hudButtonSprite);
-            progressBg.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
-            _progress = Text(progressBg.transform, "", new Vector2(.5f, .5f), new Vector2(170, 76), 20);
+            // The text is a screen-space overlay centered on the physical Remaining badge.
+            _progress = Text(canvas.transform, "", new Vector2(.13f, .65f), new Vector2(180, 84), 20);
             _progress.color = new Color(.12f, .22f, .3f);
 
             // Floating Status Line (Placed higher to avoid conveyor overlap, empty when idle)
@@ -1052,11 +1053,11 @@ namespace BlockShooter
                 var rect = (RectTransform)_slotLabels[i].transform.parent;
                 rect.anchorMin = rect.anchorMax = new Vector2((screen.x - safe.xMin) / safe.width, (screen.y - safe.yMin) / safe.height);
             }
-            if (_layout != null && _progress != null)
+            if (_remainingBadge != null && _progress != null)
             {
-                Vector3 screen = cam.WorldToScreenPoint(_layout.counterAnchor.position);
-                var pRect = (RectTransform)_progress.transform.parent;
-                pRect.anchorMin = pRect.anchorMax =
+                Vector3 screen = cam.WorldToScreenPoint(_remainingBadge.position);
+                var rect = _progress.rectTransform;
+                rect.anchorMin = rect.anchorMax =
                     new Vector2((screen.x - safe.xMin) / safe.width, (screen.y - safe.yMin) / safe.height);
             }
         }

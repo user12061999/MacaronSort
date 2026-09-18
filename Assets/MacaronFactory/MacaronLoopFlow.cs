@@ -112,6 +112,8 @@ namespace BlockShooter
             int seed = _slots.Min(s => s.Length);
             if (feeders.Length == 0 && rows.Count > seed)
                 throw new InvalidOperationException("The shortest lane cannot hold this supply without feeders. Enlarge the loop or reduce supply.");
+            var feederRows = MacaronLevel.BuildFeederAssignments(rows.SelectMany(row => row.Select(block => block.ColorType)).ToList(),
+                lanes, seed, feeders.Length);
             for (int row = 0; row < rows.Count; row++)
             {
                 groups[row].gameObject.SetActive(true);
@@ -120,7 +122,7 @@ namespace BlockShooter
                     _rowOf[rows[row][lane]] = row;
                     if (row < seed) _slots[lane][row] = rows[row][lane];
                 }
-                if (row >= seed) _queues[(row - seed) % feeders.Length].Enqueue(row);
+                if (row >= seed) _queues[feederRows.feeder[row]].Enqueue(row);
             }
             Place();
         }
@@ -265,12 +267,14 @@ namespace BlockShooter
             float laneSpacing = Mathf.Max(level.laneSpacing, diameter + .015f);
             float spacing = Spacing(level.rowSpacing, diameter, level.loopSpacingMultiplier);
             var lanes = Lanes(level.conveyorPath, level.columns, laneSpacing);
-            int count = level.BuildMacaronOrder().Count;
+            var colors = level.BuildMacaronOrder();
+            int count = colors.Count;
             int rows = Mathf.CeilToInt((float)count / level.columns);
             int seed = level.conveyorPath.Spline.Closed ? lanes.Min(p => Capacity(p, spacing)) : rows;
             var feeders = level.feederBranches.Select(f => new Path(f.GetComponent<SplineContainer>())).ToArray();
             if (level.conveyorPath.Spline.Closed && feeders.Length == 0 && rows > seed)
                 throw new InvalidOperationException("The shortest lane cannot hold this supply without feeders.");
+            var feederRows = MacaronLevel.BuildFeederAssignments(colors, level.columns, seed, feeders.Length);
             for (int row = 0; row < rows; row++)
                 for (int lane = 0; lane < Mathf.Min(level.columns, count - row * level.columns); lane++)
                 {
@@ -284,9 +288,9 @@ namespace BlockShooter
                     }
                     else
                     {
-                        int f = (row - seed) % feeders.Length;
+                        int f = feederRows.feeder[row];
                         float distance = feeders[f].Distances[Mathf.Clamp(Mathf.RoundToInt(level.feederBranches[f].Branch.sweepTo * 512), 0, 512)]
-                            - diameter * .55f - ((row - seed) / feeders.Length) * Spacing(level.rowSpacing, diameter, level.feederSpacingMultiplier);
+                            - diameter * .55f - feederRows.index[row] * Spacing(level.rowSpacing, diameter, level.feederSpacingMultiplier);
                         if (distance < 0) continue;
                         feeders[f].Pose(distance, out var p, out var rotation);
                         int width = Mathf.Min(level.columns, count - row * level.columns);

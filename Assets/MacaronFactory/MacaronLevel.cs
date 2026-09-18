@@ -86,6 +86,12 @@ namespace BlockShooter
         public Transform[] waitingSlots = new Transform[6];
         public Transform counterAnchor;
         [Range(1, 5)] public int columns = 3;
+        [Tooltip("Keep matching macarons together in the supply without changing the conveyor layout.")]
+        public bool clusterColors = true;
+        [Tooltip("Target pieces per color cluster. It rounds up to full conveyor rows using Columns.")]
+        [Range(6, 24)] public int colorClusterSize = 12;
+        [Tooltip("Maximum different colors introduced together. Three keeps one of the four starting tray slots free.")]
+        [Range(1, 3)] public int activeColorLimit = 3;
         [Min(.22f)] public float laneSpacing = .25f;
         [Min(.24f)] public float rowSpacing = .32f;
         [Min(0)] public float stopBeforeExit = .5f;
@@ -106,6 +112,19 @@ namespace BlockShooter
         public bool bindWaitingSlotsToGates;
 
         public MacaronTray[] GetTrays() => trayRoot.GetComponentsInChildren<MacaronTray>(true);
+
+        public void MoveRemainingBadgeToTraySide()
+        {
+            if (waitingSlots == null || waitingSlots.Length == 0 || Array.Exists(waitingSlots, slot => slot == null)) return;
+            var badge = transform.Find("Remaining badge");
+            if (badge == null) return;
+            float left = waitingSlots.Min(slot => transform.InverseTransformPoint(slot.position).x);
+            float front = waitingSlots.Max(slot => transform.InverseTransformPoint(slot.position).z);
+            var position = badge.localPosition;
+            position.x = left - badge.localScale.x * .45f;
+            position.z = front + 1.1f;
+            badge.localPosition = position;
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         //  Gate mounts
@@ -277,8 +296,11 @@ namespace BlockShooter
         {
             var trays = GetTrays();
             if (!useCustomMacaronOrder)
-                return trays.OrderByDescending(tray => tray.stackLayer)
+            {
+                var defaultSupplyOrder = trays.OrderByDescending(tray => tray.stackLayer)
                     .SelectMany(tray => Enumerable.Repeat(tray.levelColor, tray.Capacity)).ToList();
+                return clusterColors ? ClusterColors(defaultSupplyOrder, colorClusterSize, columns, activeColorLimit) : defaultSupplyOrder;
+            }
             if (macaronOrder == null || macaronOrder.Length == 0)
                 throw new InvalidOperationException($"{name}: custom Macaron Order is empty.");
             var capacity = new int[7];
@@ -302,7 +324,55 @@ namespace BlockShooter
             for (int color = 1; color <= 6; color++)
                 if (supply[color] != capacity[color])
                     throw new InvalidOperationException($"{name}: {(BlockColorType)color} has {supply[color]} cakes but {capacity[color]} tray pockets.");
-            return macaronOrder.SelectMany(batch => Enumerable.Repeat(batch.color, batch.count)).ToList();
+            var supplyOrder = macaronOrder.SelectMany(batch => Enumerable.Repeat(batch.color, batch.count)).ToList();
+            return clusterColors ? ClusterColors(supplyOrder, colorClusterSize, columns, activeColorLimit) : supplyOrder;
+        }
+
+        public static List<BlockColorType> ClusterColors(List<BlockColorType> supply, int size, int columns, int activeColors)
+        {
+            int rowWidth = Mathf.Max(1, columns);
+            int clusterSize = Mathf.CeilToInt(Mathf.Clamp(size, 6, 24) / (float)rowWidth) * rowWidth;
+            var remaining = supply.GroupBy(color => color).ToDictionary(group => group.Key, group => group.Count());
+            var colors = supply.Distinct().ToArray();
+            var result = new List<BlockColorType>(supply.Count);
+            int paletteSize = Mathf.Clamp(activeColors, 1, 3);
+            for (int start = 0; start < colors.Length; start += paletteSize)
+            {
+                int end = Mathf.Min(start + paletteSize, colors.Length);
+                while (Enumerable.Range(start, end - start).Any(index => remaining[colors[index]] > 0))
+                    for (int index = start; index < end; index++)
+                    {
+                        var color = colors[index];
+                        int take = Mathf.Min(clusterSize, remaining[color]);
+                        for (int i = 0; i < take; i++) result.Add(color);
+                        remaining[color] -= take;
+                    }
+            }
+            return result;
+        }
+
+        public static (int[] feeder, int[] index) BuildFeederAssignments(IReadOnlyList<BlockColorType> supply,
+            int columns, int seededRows, int feederCount)
+        {
+            int rowCount = Mathf.CeilToInt(supply.Count / (float)Mathf.Max(1, columns));
+            var feeder = Enumerable.Repeat(-1, rowCount).ToArray();
+            var index = Enumerable.Repeat(-1, rowCount).ToArray();
+            if (feederCount <= 0) return (feeder, index);
+
+            var queued = new int[feederCount];
+            int currentFeeder = 0;
+            bool hasPrevious = false;
+            BlockColorType previous = default;
+            for (int row = Mathf.Clamp(seededRows, 0, rowCount); row < rowCount; row++)
+            {
+                var color = supply[row * columns];
+                if (hasPrevious && color != previous) currentFeeder = (currentFeeder + 1) % feederCount;
+                feeder[row] = currentFeeder;
+                index[row] = queued[currentFeeder]++;
+                previous = color;
+                hasPrevious = true;
+            }
+            return (feeder, index);
         }
 
         public void AlignExitToWaitingSlots()
@@ -342,6 +412,8 @@ namespace BlockShooter
                     branch.joinAt != ConveyorJunction.BranchEnd.End || branch.GetComponent<SplineContainer>().Spline.Closed)))
                 throw new InvalidOperationException($"{name}: a closed conveyor requires open feeder branches joined to this track at their ends.");
             if (columns < 1 || columns > 5) throw new InvalidOperationException($"{name}: Columns must be between 1 and 5.");
+            if (activeColorLimit < 1 || activeColorLimit > 3)
+                throw new InvalidOperationException($"{name}: Active Color Limit must be between 1 and 3.");
             if (Array.Exists(GetTrays(), tray => tray.pockets == null || tray.pockets.Length < 4 || tray.pockets.Length > 8 ||
                 Array.Exists(tray.pockets, pocket => pocket == null) || tray.lid == null || tray.GetComponent<BoxCollider>() == null))
                 throw new InvalidOperationException($"{name}: each tray needs 4–8 assigned pockets, a lid and a BoxCollider.");

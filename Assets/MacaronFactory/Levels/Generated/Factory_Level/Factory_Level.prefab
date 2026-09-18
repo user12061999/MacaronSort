@@ -444,6 +444,7 @@ MonoBehaviour:
   - {fileID: 2343503897539352471}
   - {fileID: 6545513171722939483}
   collectionGate: {fileID: 0}
+  independentLanePacking: 0
   loopSpacingMultiplier: 0.9
   feederSpacingMultiplier: 0.9
   trayRoot: {fileID: 115734451411472110}

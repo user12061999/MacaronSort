@@ -46,6 +46,14 @@ namespace BlockShooter.Editor
         [Range(.5f, 1.5f)] public float feederSpacingMultiplier = .9f;
         [Tooltip("Off: supply follows top trays first. On: shuffles whole tray batches; may require more planning.")]
         public bool shuffleSupply;
+        [Header("Bus Jam supply")]
+        [Tooltip("Keep matching macarons in full-row color blocks on the conveyor.")]
+        public bool clusterColors = true;
+        [Range(6, 24)] public int colorClusterSize = 12;
+        [Tooltip("Maximum colors in each generated supply window. Keep it below the four starting tray slots.")]
+        [Range(1, 3)] public int activeColorLimit = 3;
+        [Tooltip("Assign tray colors in the same top-to-bottom, front-to-back order used by the conveyor supply.")]
+        public bool arrangeTraysForSupply = true;
         public bool addToFactory = true;
         public bool selectAsStartingStage;
         public void Persist() => Save(true);
@@ -172,24 +180,32 @@ namespace BlockShooter.Editor
                 var level = root.GetComponent<MacaronLevel>();
                 foreach (Transform child in level.trayRoot.Cast<Transform>().ToArray()) Object.DestroyImmediate(child.gameObject);
                 var random = new System.Random(config.seed);
+                void SetTrayColor(MacaronTray tray, BlockColorType color)
+                {
+                    tray.levelColor = color;
+                    tray.name = $"{tray.name.Split(' ')[0]} {color} {tray.gameObject.name.Split(' ')[^1]}";
+                    var tint = AssetDatabase.LoadAssetAtPath<Material>($"Assets/MacaronFactory/Levels/Tray_{color}.mat");
+                    foreach (var renderer in tray.tintRenderers)
+                    {
+                        var materials = renderer.sharedMaterials;
+                        materials[0] = tint;
+                        renderer.sharedMaterials = materials;
+                        PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                    }
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(tray);
+                }
                 int slots = Mathf.CeilToInt((float)config.trayCount / config.stackLayers);
                 var trays = new List<MacaronTray>();
                 for (int i = 0; i < config.trayCount; i++)
                 {
                     var prefab = random.Next(100) < config.largeTrayPercent ? large : small;
                     var tray = ((GameObject)PrefabUtility.InstantiatePrefab(prefab.gameObject, level.trayRoot)).GetComponent<MacaronTray>();
-                    tray.levelColor = Colors[i % Mathf.Min(config.colorCount, config.trayCount)];
                     tray.stackLayer = i / slots;
                     tray.mystery = config.mysteryUnderStacks && i + slots < config.trayCount;
-                    tray.name = $"{i + 1:00} {tray.levelColor} {prefab.name}";
+                    tray.name = $"{i + 1:00} {prefab.name}";
                     tray.transform.localRotation = Quaternion.Euler(0, config.mixVerticalTrays && random.Next(2) == 1 ? 90 : 0, 0);
                     tray.transform.localScale = Vector3.one * Mathf.Clamp(config.trayScale, .5f, 1.5f);
-                    var tint = AssetDatabase.LoadAssetAtPath<Material>($"Assets/MacaronFactory/Levels/Tray_{tray.levelColor}.mat");
-                    foreach (var renderer in tray.tintRenderers)
-                    {
-                        var materials = renderer.sharedMaterials; materials[0] = tint; renderer.sharedMaterials = materials;
-                        PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
-                    }
+                    SetTrayColor(tray, Colors[i % Mathf.Min(config.colorCount, config.trayCount)]);
                     trays.Add(tray);
                 }
                 float gap = Mathf.Clamp(config.trayGap, 0, .3f);
@@ -259,11 +275,23 @@ namespace BlockShooter.Editor
                         board.localScale.y, boardDepth - inset);
                 }
                 var order = trays.OrderByDescending(t => t.stackLayer).ToList();
-                if (config.shuffleSupply)
+                if (config.arrangeTraysForSupply)
+                {
+                    order = trays.OrderByDescending(t => t.stackLayer).ThenByDescending(t => t.transform.localPosition.z)
+                        .ThenBy(t => t.transform.localPosition.x).ToList();
+                    var colorCycle = Colors.Take(Mathf.Min(config.colorCount, config.trayCount)).ToList();
+                    if (config.shuffleSupply)
+                        for (int i = colorCycle.Count - 1; i > 0; i--) { int j = random.Next(i + 1); (colorCycle[i], colorCycle[j]) = (colorCycle[j], colorCycle[i]); }
+                    for (int i = 0; i < order.Count; i++) SetTrayColor(order[i], colorCycle[i % colorCycle.Count]);
+                }
+                else if (config.shuffleSupply)
                     for (int i = order.Count - 1; i > 0; i--) { int j = random.Next(i + 1); (order[i], order[j]) = (order[j], order[i]); }
                 level.useCustomMacaronOrder = true;
                 level.macaronOrder = order.Select(t => new MacaronLevel.MacaronBatch { color = t.levelColor, count = t.pockets.Length }).ToArray();
                 level.columns = Mathf.Clamp(config.conveyorColumns, 1, 5);
+                level.clusterColors = config.clusterColors;
+                level.colorClusterSize = config.colorClusterSize;
+                level.activeColorLimit = config.activeColorLimit;
                 level.loopSpacingMultiplier = config.loopSpacingMultiplier;
                 level.independentLanePacking = config.independentLanePacking;
                 level.feederSpacingMultiplier = config.feederSpacingMultiplier;
@@ -418,8 +446,7 @@ namespace BlockShooter.Editor
             }
             top = bounds.max.z;
             level.counterAnchor.localPosition = new Vector3(centerX, .05f, (bottom + top) * .5f);
-            var badge = level.transform.Find("Remaining badge");
-            if (badge != null) badge.localPosition = new Vector3(centerX, badge.localPosition.y, (bottom + top) * .5f);
+            level.MoveRemainingBadgeToTraySide();
         }
 
         private static void FitSupplyOnRing(MacaronLevel level, float diameter)
