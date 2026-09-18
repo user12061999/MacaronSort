@@ -35,6 +35,12 @@ namespace BlockShooter.Editor
             }
             if (GUILayout.Button("Refresh scene / game preview")) MacaronLevelPreview.Refresh();
             if (GUILayout.Button("Focus preview in Scene")) MacaronLevelPreview.Focus();
+            using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode || selected.trayRoot == null))
+                if (GUILayout.Button("Compact trays (uses Tray Gap)"))
+                {
+                    MacaronLevelGenerator.CompactTrays(selected);
+                    MacaronLevelPreview.Refresh();
+                }
             EditorGUILayout.Space();
             MacaronLevelGenerator.Draw(selected);
         }

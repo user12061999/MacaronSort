@@ -175,6 +175,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f254945d515824449d7ad97280d3214, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  levelColor: 1
+  stackLayer: 0
+  mystery: 0
   pockets:
   - {fileID: 5037239972045320891}
   - {fileID: 7244872804676304494}
@@ -203,7 +206,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1.513657, y: 0.41320688, z: 0.6483707}
+  m_Size: {x: 1.45, y: 0.41320688, z: 0.6}
   m_Center: {x: 0.000000059604645, y: 0.20660344, z: 0.00000011920929}
 --- !u!1 &9205550233636974152
 GameObject:

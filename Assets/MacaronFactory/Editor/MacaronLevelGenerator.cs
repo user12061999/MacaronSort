@@ -32,7 +32,7 @@ namespace BlockShooter.Editor
         public bool mixVerticalTrays;
         public bool mysteryUnderStacks;
         [Range(.5f, 1.5f)] public float trayScale = .98f;
-        [Range(0, .3f)] public float trayGap = .025f;
+        [Range(0, .3f)] public float trayGap = 0f;
         [Range(1, 5)] public int conveyorColumns = 2;
         public ConveyorShape conveyorShape = ConveyorShape.RoundedRectangle;
         [Tooltip("On: current video-style packing. Off: previous packing with rows aligned before collection.")]
@@ -208,72 +208,10 @@ namespace BlockShooter.Editor
                     SetTrayColor(tray, Colors[i % Mathf.Min(config.colorCount, config.trayCount)]);
                     trays.Add(tray);
                 }
-                float gap = Mathf.Clamp(config.trayGap, 0, .3f);
-                var footprints = new Dictionary<MacaronTray, Rect>();
-                Vector2 Size(MacaronTray tray)
-                {
-                    var size = Vector3.Scale(tray.GetComponent<BoxCollider>().size, tray.transform.localScale);
-                    bool vertical = Mathf.Abs(tray.transform.localEulerAngles.y - 90) < 1;
-                    return vertical ? new Vector2(size.z, size.x) : new Vector2(size.x, size.z);
-                }
-                float tableWidth = Mathf.Max(trays.Max(t => Size(t).x),
-                    config.tableColumns * trays.Max(t => Mathf.Max(Size(t).x, Size(t).y) + gap) - gap);
-                // ponytail: at most 48 trays; edge-candidate packing is quadratic per candidate.
-                // For hundreds of trays replace this search with a free-rectangle packer.
-                foreach (var layer in trays.GroupBy(t => t.stackLayer).OrderBy(g => g.Key))
-                {
-                    var placed = new List<Rect>();
-                    foreach (var tray in layer.OrderByDescending(t => Size(t).x * Size(t).y))
-                    {
-                        var size = Size(tray);
-                        var xs = placed.Select(r => r.xMax + gap).Append(0f).Distinct().OrderBy(x => x);
-                        var zs = placed.Select(r => r.yMax + gap).Append(0f).Distinct().OrderBy(z => z);
-                        Rect? chosen = null;
-                        foreach (float z in zs)
-                        {
-                            foreach (float x in xs)
-                            {
-                                var candidate = new Rect(x, z, size.x, size.y);
-                                if (candidate.xMax > tableWidth + .001f) continue;
-                                var padded = new Rect(x - gap * .99f, z - gap * .99f,
-                                    size.x + gap * 1.98f, size.y + gap * 1.98f);
-                                if (placed.Any(r => r.Overlaps(padded))) continue;
-                                chosen = candidate;
-                                break;
-                            }
-                            if (chosen.HasValue) break;
-                        }
-                        if (!chosen.HasValue) throw new InvalidOperationException("Unable to place tray within the table width.");
-                        placed.Add(chosen.Value);
-                        footprints[tray] = chosen.Value;
-                    }
-                }
-                float packedWidth = footprints.Values.Max(r => r.xMax);
-                float packedDepth = footprints.Values.Max(r => r.yMax);
-                float boardDepth = packedDepth + .35f;
-                float centerZ = -.6f - boardDepth * .5f;
+                var footprints = CompactTrays(level, trays, config.tableColumns, config.trayGap, config.trayScale, true);
                 foreach (var tray in trays)
-                {
-                    var rect = footprints[tray];
-                    var box = tray.GetComponent<BoxCollider>();
-                    var offset = tray.transform.localRotation * Vector3.Scale(box.center, tray.transform.localScale);
-                    tray.transform.localPosition = new Vector3(rect.center.x - packedWidth * .5f - offset.x,
-                        tray.stackLayer * .48f * config.trayScale,
-                        -.775f - rect.center.y - offset.z);
                     tray.mystery = config.mysteryUnderStacks && trays.Any(other => other.stackLayer > tray.stackLayer
-                        && footprints[other].Overlaps(rect));
-                    PrefabUtility.RecordPrefabInstancePropertyModifications(tray);
-                    PrefabUtility.RecordPrefabInstancePropertyModifications(tray.transform);
-                }
-                foreach (string boardName in new[] { "Tray board rim", "Tray board inset" })
-                {
-                    var board = level.transform.Find(boardName);
-                    if (board == null) continue;
-                    board.localPosition = new Vector3(0, board.localPosition.y, centerZ);
-                    float inset = boardName.EndsWith("inset") ? .2f : 0;
-                    board.localScale = new Vector3(Mathf.Max(6.2f, packedWidth + .35f) - inset,
-                        board.localScale.y, boardDepth - inset);
-                }
+                        && footprints[other].Overlaps(footprints[tray]));
                 var order = trays.OrderByDescending(t => t.stackLayer).ToList();
                 if (config.arrangeTraysForSupply)
                 {
@@ -317,6 +255,94 @@ namespace BlockShooter.Editor
             {
                 if (!generatedSuccessfully) EditorSceneManager.ClosePreviewScene(draftScene);
             }
+        }
+
+        public static void CompactTrays(MacaronLevel level)
+        {
+            var config = MacaronGeneratorSettings.instance;
+            var trays = level.GetTrays().ToList();
+            if (trays.Count == 0) throw new InvalidOperationException("This level has no trays to arrange.");
+            var changed = trays.Select(tray => tray.transform).Concat(new[] { level.transform })
+                .Concat(new[] { level.transform.Find("Tray board rim"), level.transform.Find("Tray board inset") }
+                    .Where(board => board != null)).ToArray();
+            Undo.RecordObjects(changed, "Compact trays");
+            CompactTrays(level, trays, config.tableColumns, config.trayGap, config.trayScale, false);
+            EditorUtility.SetDirty(level);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(level);
+        }
+
+        private static Dictionary<MacaronTray, Rect> CompactTrays(MacaronLevel level, List<MacaronTray> trays,
+            int columns, float requestedGap, float trayScale, bool resetStackHeight)
+        {
+            float gap = Mathf.Clamp(requestedGap, 0, .3f);
+            var footprints = new Dictionary<MacaronTray, Rect>();
+            Vector2 Size(MacaronTray tray)
+            {
+                var size = Vector3.Scale(tray.GetComponent<BoxCollider>().size, tray.transform.localScale);
+                bool vertical = Mathf.Abs(tray.transform.localEulerAngles.y - 90) < 1;
+                return vertical ? new Vector2(size.z, size.x) : new Vector2(size.x, size.z);
+            }
+            int columnCount = Mathf.Clamp(columns, 1, 5);
+            float tableWidth = trays.GroupBy(t => t.stackLayer).Max(layer =>
+            {
+                int rows = Mathf.CeilToInt(layer.Count() / (float)columnCount);
+                return layer.Sum(tray => Size(tray).x + gap) / rows - gap;
+            });
+            tableWidth = Mathf.Max(tableWidth, trays.Max(tray => Size(tray).x));
+            // ponytail: at most 48 trays; edge-candidate packing is quadratic per candidate.
+            // For hundreds of trays replace this search with a free-rectangle packer.
+            foreach (var layer in trays.GroupBy(t => t.stackLayer).OrderBy(g => g.Key))
+            {
+                var placed = new List<Rect>();
+                foreach (var tray in layer.OrderByDescending(t => Size(t).x * Size(t).y))
+                {
+                    var size = Size(tray);
+                    var xs = placed.Select(r => r.xMax + gap).Append(0f).Distinct().OrderBy(x => x);
+                    var zs = placed.Select(r => r.yMax + gap).Append(0f).Distinct().OrderBy(z => z);
+                    Rect? chosen = null;
+                    foreach (float z in zs)
+                    {
+                        foreach (float x in xs)
+                        {
+                            var candidate = new Rect(x, z, size.x, size.y);
+                            var padded = new Rect(x - gap * .99f, z - gap * .99f, size.x + gap * 1.98f, size.y + gap * 1.98f);
+                            if (candidate.xMax <= tableWidth + .001f && !placed.Any(r => r.Overlaps(padded)))
+                            {
+                                chosen = candidate;
+                                break;
+                            }
+                        }
+                        if (chosen.HasValue) break;
+                    }
+                    if (!chosen.HasValue) throw new InvalidOperationException("Unable to place tray within the table width.");
+                    placed.Add(chosen.Value);
+                    footprints[tray] = chosen.Value;
+                }
+            }
+            float packedWidth = footprints.Values.Max(r => r.xMax);
+            float packedDepth = footprints.Values.Max(r => r.yMax);
+            float boardDepth = packedDepth + .35f;
+            foreach (var tray in trays)
+            {
+                var rect = footprints[tray];
+                var box = tray.GetComponent<BoxCollider>();
+                var offset = tray.transform.localRotation * Vector3.Scale(box.center, tray.transform.localScale);
+                float y = resetStackHeight ? tray.stackLayer * .48f * trayScale : tray.transform.localPosition.y;
+                tray.transform.localPosition = new Vector3(rect.center.x - packedWidth * .5f - offset.x,
+                    y, -.775f - rect.center.y - offset.z);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(tray.transform);
+            }
+            float centerZ = -.6f - boardDepth * .5f;
+            foreach (string boardName in new[] { "Tray board rim", "Tray board inset" })
+            {
+                var board = level.transform.Find(boardName);
+                if (board == null) continue;
+                board.localPosition = new Vector3(0, board.localPosition.y, centerZ);
+                float inset = boardName.EndsWith("inset") ? .2f : 0;
+                board.localScale = new Vector3(Mathf.Max(6.2f, packedWidth + .35f) - inset, board.localScale.y, boardDepth - inset);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(board);
+            }
+            return footprints;
         }
 
         private static MacaronLevel SaveDraft(MacaronGeneratorSettings config)

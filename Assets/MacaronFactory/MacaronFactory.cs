@@ -605,7 +605,7 @@ namespace BlockShooter
         {
             if (_coins != null) _coins.text = SaveManager.Coins.ToString();
             if (_stageText != null) _stageText.text = $"STAGE {Stage:00}";
-            if (_progress != null) _progress.text = $"<b><size=34>{_remaining}</size></b>\n<size=20>Macarons left</size>";
+            if (_progress != null) _progress.text = $"{_remaining} MACARONS";
             for (int i = 0; i < 6; i++)
             {
                 if (_slotLabels[i] != null)
@@ -886,8 +886,11 @@ namespace BlockShooter
             _coins.color = new Color(.12f, .22f, .3f);
 
             // The text is a screen-space overlay centered on the physical Remaining badge.
-            _progress = Text(canvas.transform, "", new Vector2(.13f, .65f), new Vector2(180, 84), 20);
+            _progress = Text(canvas.transform, "", new Vector2(.13f, .65f), new Vector2(136, 42), 20);
             _progress.color = new Color(.12f, .22f, .3f);
+            _progress.enableAutoSizing = true;
+            _progress.fontSizeMin = 10;
+            _progress.fontSizeMax = 22;
 
             // Floating Status Line (Placed higher to avoid conveyor overlap, empty when idle)
             _status = Text(canvas.transform, "", new Vector2(.5f, .912f), new Vector2(620, 40), 20);
