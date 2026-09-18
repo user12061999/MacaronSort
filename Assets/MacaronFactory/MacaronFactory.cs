@@ -184,6 +184,7 @@ namespace BlockShooter
             _layout.name = prefab.name;
             _layout.AlignExitToWaitingSlots();
             _layout.MoveRemainingBadgeToTraySide();
+            MacaronLevelVisualPolish.Apply(_layout);
             _remainingBadge = _layout.transform.Find("Remaining badge");
             BuildTrays();
             BuildConveyor();
@@ -206,6 +207,7 @@ namespace BlockShooter
             foreach (var tray in _layout.GetTrays())
             {
                 tray.Initialize(this, tray.levelColor, tray.stackLayer, tray.mystery, tray.transform.localPosition);
+                MacaronLevelVisualPolish.MarkForOutline(tray.transform);
                 _trays.Add(tray);
             }
             for (int i = 0; i < 6; i++) _slotPads[i] = _layout.waitingSlots[i].GetComponent<Renderer>();
@@ -294,6 +296,7 @@ namespace BlockShooter
                     foreach (var renderer in block.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
                     var prefab = MacaronPrefab(color);
                     var visual = Instantiate(prefab, block.transform).transform;
+                    MacaronLevelVisualPolish.MarkForOutline(visual);
                     ApplyMacaronColor(visual.GetComponent<Renderer>(), color);
                     visual.name = "Macaron";
                     Vector3 scale = block.transform.lossyScale;
