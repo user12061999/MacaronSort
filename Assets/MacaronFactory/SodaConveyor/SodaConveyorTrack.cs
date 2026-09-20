@@ -61,6 +61,12 @@ namespace BlockShooter.SodaConveyor
         public float SplineWorldLength => _trackWorldLength;
         public float OuterRadius => beltHalfWidth + StageTrackData.RailWidth;
         public float TrackHeight => trackHeight;
+        public float RowSpacing => StageTrackData.RowSpacing;
+        public float LaneSpacing => StageLayout.LaneSpacing;
+        public float ItemRadius { get; private set; } = .07f;
+
+        // Visual size only affects clearance at the feeder mouth, never the belt geometry.
+        public void SetItemDiameter(float diameter) => ItemRadius = Mathf.Max(.01f, diameter * .5f);
 
         void Awake()
         {
@@ -83,9 +89,10 @@ namespace BlockShooter.SodaConveyor
         {
             SetTrackShape(preset, 1f);
             Configure(loopSpeed);
-            BuildVisualBelt();
-            BuildMainGroups(StageLayout.MainGroups(preset));
-            BuildBranches(StageLayout.Branches(preset, contentScale, quantum));
+            var branches = StageLayout.FeedAllFromBranches(preset, StageLayout.MainGroups(preset), StageLayout.Branches(preset, contentScale, quantum));
+            BuildVisualBelt(branches);
+            BuildEmptySlots();
+            BuildBranches(branches);
         }
         public void TickFinishBoost(bool yardEmpty)
         {
@@ -107,12 +114,12 @@ namespace BlockShooter.SodaConveyor
             speed = _cruiseSpeed * _boostMul;
         }
 
-        public void BuildVisualBelt()
+        public void BuildVisualBelt(StageBranchSpec[] branchSpecs = null)
         {
             BuildTrackShape();
             EnsureMeshBuilder();
 
-            var branchSpecs = StageLayout.Branches(trackShapePreset);
+            branchSpecs ??= StageLayout.FeedAllFromBranches(trackShapePreset, System.Array.Empty<StageGroupSpec>(), StageLayout.Branches(trackShapePreset));
             var branchSplines = new Spline[branchSpecs.Length];
             for (var i = 0; i < branchSpecs.Length; i++)
                 branchSplines[i] = branchSpecs[i].BuildSpline(trackScale, trackHeight);
@@ -335,6 +342,14 @@ namespace BlockShooter.SodaConveyor
         }
 
         // ── Stage bootstrap: pre-place every soda up front ──────────────────────────────
+        public void BuildEmptySlots()
+        {
+            _slots.Clear();
+            int count = Mathf.Max(1, Mathf.FloorToInt(_trackWorldLength / RowSpacing));
+            for (int i = 0; i < count; i++)
+                _slots.Add(new ConveyorSlot { RowT = (float)i / count });
+        }
+
         public void BuildMainGroups(StageGroupSpec[] specs)
         {
             _slots.Clear();
@@ -369,8 +384,8 @@ namespace BlockShooter.SodaConveyor
             group.colorType = spec.Color;
             group.rowCount = Mathf.Max(1, spec.RowCount);
             group.laneCount = StageGroupSpec.LaneCount;
-            group.laneSpacing = StageLayout.LaneSpacing;
-            group.rowSpacing = StageTrackData.RowSpacing;
+            group.laneSpacing = LaneSpacing;
+            group.rowSpacing = RowSpacing;
 
             for (var row = 0; row < group.rowCount; row++)
             {
@@ -430,8 +445,8 @@ namespace BlockShooter.SodaConveyor
             group.colorType = color;
             group.rowCount = 1;
             group.laneCount = StageGroupSpec.LaneCount;
-            group.laneSpacing = StageLayout.LaneSpacing;
-            group.rowSpacing = StageTrackData.RowSpacing;
+            group.laneSpacing = LaneSpacing;
+            group.rowSpacing = RowSpacing;
             group.Initialize();
             return group;
         }

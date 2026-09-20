@@ -329,7 +329,7 @@ MonoBehaviour:
   - {fileID: 57351702298609094, guid: 677bc95c44ae3ac49901af2a0723c465, type: 3}
   - {fileID: 6221063533694578287, guid: 564f6f32629207a47a5af229ddbc807d, type: 3}
   colorRegistry: {fileID: 0}
-  conveyorMacaronScale: 1.6
+  conveyorMacaronScale: 1.3
   macaronExitTime: 0.6
   macaronExitCurve:
     serializedVersion: 2

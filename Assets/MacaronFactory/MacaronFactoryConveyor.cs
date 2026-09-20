@@ -58,6 +58,7 @@ namespace BlockShooter
             var main = StageLayout.MainGroups(preset);
             var branches = StageLayout.Branches(preset, contentScale, quantum);
             var supply = main.Concat(branches.SelectMany(branch => branch.Groups)).ToArray();
+            branches = StageLayout.FeedAllFromBranches(preset, main, branches);
             AddSourceColors();
 
             if (_layout.conveyorPath != null) _layout.conveyorPath.gameObject.SetActive(false);
@@ -74,27 +75,23 @@ namespace BlockShooter
             Conveyor.SideMaterial = Material("Conveyor sides", new Color(.35f, .35f, .4f));
             Conveyor.TopMaterial = Material("Conveyor top", new Color(.2f, .2f, .24f));
             Conveyor.SetTrackShape(preset, 1f);
-            Conveyor.Configure(sourceLoopSpeed);
-            Conveyor.BuildVisualBelt();
-
-            // Translate only: preserve the source spline, lane spacing, row spacing and belt profile.
-            var bounds = SourceBeltBounds();
-            float slotX = _layout.waitingSlots.Average(slot => slot.position.x);
-            float slotBack = _layout.waitingSlots.Max(slot => slot.position.z);
-            root.transform.position += new Vector3(slotX - bounds.center.x, 0, slotBack + 1f - bounds.min.z);
             float diameter = macaronPrefabs.Max(prefab =>
             {
                 var box = prefab.GetComponent<Renderer>().localBounds;
                 return 2 * Mathf.Max(Mathf.Abs(box.center.x) + box.extents.x, Mathf.Abs(box.center.z) + box.extents.z);
-            });
-            float scale = Mathf.Min(conveyorMacaronScale, StageTrackData.RowSpacing * .88f / Mathf.Max(.001f, diameter));
-            Conveyor.SpawnItem = (color, parent) => SpawnMacaronBlock(color, parent, scale);
-            Conveyor.BuildMainGroups(main);
+            }) * conveyorMacaronScale;
+            Conveyor.SetItemDiameter(diameter);
+            Conveyor.Configure(sourceLoopSpeed);
+            Conveyor.BuildVisualBelt(branches);
+
+            // Keep the original belt placement behind the receiving slots.
+            var bounds = SourceBeltBounds();
+            float slotX = _layout.waitingSlots.Average(slot => slot.position.x);
+            float slotBack = _layout.waitingSlots.Max(slot => slot.position.z);
+            root.transform.position += new Vector3(slotX - bounds.center.x, 0, slotBack + 1f - bounds.min.z);
+            Conveyor.SpawnItem = (color, parent) => SpawnMacaronBlock(color, parent, conveyorMacaronScale);
+            Conveyor.BuildEmptySlots();
             Conveyor.BuildBranches(branches);
-            _rows.Clear();
-            foreach (var group in root.GetComponentsInChildren<SodaGroup>())
-                for (int row = 0; row < group.RowCount; row++)
-                    _rows.Add(Enumerable.Range(0, group.LaneCount).Select(lane => group.GetItem(row, lane)).ToArray());
             _remaining = supply.Sum(group => group.RowCount * StageGroupSpec.LaneCount);
             RebuildSourceTrays(supply);
         }

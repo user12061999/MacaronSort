@@ -42,16 +42,6 @@ namespace BlockShooter.SodaConveyor
             }
             return false;
         }
-        public static int CountRowsOnSplineAtStart(StageBranchSpec spec, float scale, float height, float mainOuterRadius)
-        {
-            var spline = spec.BuildSpline(scale, height);
-            var splineLength = SplineUtility.CalculateLength(spline, Unity.Mathematics.float4x4.identity);
-            var safetyOffset = mainOuterRadius + (StageGroupSpec.LaneCount - 1) * 0.5f * StageLayout.LaneSpacing + 0.05f;
-            var mergeStopT = splineLength > 0f ? Mathf.Clamp01(1f - safetyOffset / splineLength) : 0.95f;
-            // Row i sits at mergeStopT - i * rowSpacing / length; count those with T >= 0.
-            return Mathf.FloorToInt(mergeStopT * splineLength / StageTrackData.RowSpacing) + 1;
-        }
-
         public void Setup(SodaConveyorTrack track, StageBranchSpec spec, float scale, float height)
         {
             _track = track;
@@ -63,16 +53,15 @@ namespace BlockShooter.SodaConveyor
             _mergeT = spec.MergeT;
 
             var mainOuterRadius = _track.OuterRadius;
-            var laneSpacing = StageLayout.LaneSpacing;
-            var rowSpacing = StageTrackData.RowSpacing;
+            var laneSpacing = _track.LaneSpacing;
+            var rowSpacing = _track.RowSpacing;
 
             _mainMergeWorldPos = _track.EvaluateWorld(_mergeT, out _);
 
-            // Blocks stop at the outer wall of the main conveyor, offset so the closest lane
-            // ((LaneCount-1)/2 lane-widths off centerline — Block Shooter hard-coded 2 for its
-            // 5 lanes) clears it with a small safety margin — same math as BranchPath.Initialize().
-            var safetyOffset = mainOuterRadius + (StageGroupSpec.LaneCount - 1) * 0.5f * laneSpacing + 0.05f;
-            _mergeStopT = _splineLength > 0f ? Mathf.Clamp01(1f - safetyOffset / _splineLength) : 0.95f;
+            // Measure the final approach in world space; normalized spline T is not distance.
+            // Only the cake radius needs clearance along the approach, not half the entire row.
+            float clearance = mainOuterRadius + _track.ItemRadius + .015f;
+            _mergeStopT = FindMergeStop(_mainMergeWorldPos, clearance);
 
             _rows.Clear();
             var globalRowIndex = 0;
@@ -100,6 +89,29 @@ namespace BlockShooter.SodaConveyor
                 _rows[i] = row;
             }
         }
+        private float FindMergeStop(Vector3 mergePosition, float clearance)
+        {
+            float Distance(float t)
+            {
+                _splineContainer.Spline.Evaluate(t, out var p, out _, out _);
+                return Vector3.Distance(transform.TransformPoint((Vector3)p), mergePosition);
+            }
+            if (Distance(1) >= clearance) return 1;
+            // Find the last crossing even when a curved branch has earlier bends near the loop.
+            for (int i = 127; i >= 0; i--)
+            {
+                float lo = i / 128f, hi = (i + 1) / 128f;
+                if (Distance(lo) < clearance) continue;
+                for (int step = 0; step < 16; step++)
+                {
+                    float mid = (lo + hi) * .5f;
+                    if (Distance(mid) >= clearance) lo = mid; else hi = mid;
+                }
+                return lo;
+            }
+            return 0;
+        }
+
         public void ReleaseAllAndDestroy()
         {
             foreach (var row in _rows)
@@ -161,7 +173,7 @@ namespace BlockShooter.SodaConveyor
             var right = Vector3.Cross(upDir, fwd).normalized;
             var rot = fwd.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(fwd, upDir) : Quaternion.identity;
 
-            var laneSpacing = StageLayout.LaneSpacing;
+            var laneSpacing = _track.LaneSpacing;
             for (var lane = 0; lane < row.Items.Length; lane++)
             {
                 var item = row.Items[lane];

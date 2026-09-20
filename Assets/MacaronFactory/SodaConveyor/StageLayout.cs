@@ -7,6 +7,37 @@ namespace BlockShooter.SodaConveyor
     {
         public const int SourceLaneCount = 5;
         public const float LaneSpacing = 0.22f;
+        public static StageBranchSpec[] FeedAllFromBranches(int preset, StageGroupSpec[] main, StageBranchSpec[] branches)
+        {
+            if (branches.Length == 0)
+            {
+                // The first two source layouts have no feeder. Add a straight inlet at the far side.
+                var path = TrackShapePresets.Build(preset, 1, 0);
+                UnityEngine.Splines.SplineUtility.Evaluate(path, .5f, out var p, out _, out _);
+                var center = Unity.Mathematics.float3.zero;
+                for (int i = 0; i < path.Count; i++) center += path[i].Position;
+                center /= path.Count;
+                var outward = Unity.Mathematics.math.normalizesafe(p - center, new Unity.Mathematics.float3(0, 0, 1));
+                var start = p + outward * 4f;
+                var tangent = (p - start) / 3f;
+                branches = new[] { new StageBranchSpec("Inlet", .5f, false, System.Array.Empty<StageGroupSpec>(), new[] {
+                    new BranchKnot(start.x, start.z, -tangent.x, -tangent.z, tangent.x, tangent.z),
+                    new BranchKnot(p.x, p.z, -tangent.x, -tangent.z, tangent.x, tangent.z)
+                }) };
+            }
+
+            var queues = new List<StageGroupSpec>[branches.Length];
+            for (int i = 0; i < queues.Length; i++) queues[i] = new List<StageGroupSpec>();
+            for (int i = 0; i < main.Length; i++) queues[i % queues.Length].Add(main[i]);
+            var result = new StageBranchSpec[branches.Length];
+            for (int i = 0; i < branches.Length; i++)
+            {
+                var branch = branches[i];
+                queues[i].AddRange(branch.Groups);
+                result[i] = new StageBranchSpec(branch.Name, branch.MergeT, branch.ConnectFromLeft, queues[i].ToArray(), branch.Knots);
+            }
+            return result;
+        }
         sealed class Block
         {
             public int Branch;

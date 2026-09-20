@@ -42,10 +42,10 @@ namespace BlockShooter
         [Tooltip("Cake shell materials by color. Empty uses GameManager's GameConfig color registry. Filling keeps its prefab material.")]
         public ColorRegistryConfig colorRegistry;
         public ColorRegistryConfig ColorRegistry => colorRegistry != null ? colorRegistry : GetComponent<GameManager>().config?.colorRegistry;
-        [Tooltip("Maximum macaron size on the conveyor, limited to fit the source row spacing. Cakes use their authored Pocket size when collected.")]
-        [Min(.1f)] public float conveyorMacaronScale = 1.6f;
+        [Tooltip("Visual macaron scale only; belt dimensions and spacing stay unchanged. Collected cakes use the authored Pocket size.")]
+        [Min(.1f)] public float conveyorMacaronScale = 2f;
         public int maxRowWidth => SodaConveyor.StageGroupSpec.LaneCount;
-        public float laneSpacing => SodaConveyor.StageLayout.LaneSpacing;
+        public float laneSpacing => Conveyor != null ? Conveyor.LaneSpacing : SodaConveyor.StageLayout.LaneSpacing;
         [Header("Macaron exit")]
         [Tooltip("Flight time in seconds. Set to 0 to use Macaron Exit Speed instead.")]
         [Min(0)] public float macaronExitTime = .18f;
@@ -89,12 +89,13 @@ namespace BlockShooter
         public bool IsBusy => _transfers > 0 || _slots.Any(t => t != null && (t.Moving || t.Shipping));
         public Material PaperMaterial { get; private set; }
         public Material ShadowMaterial { get; private set; }
-        public IReadOnlyList<ConveyorBlock3D[]> Rows => _rows;
+        public IReadOnlyList<ConveyorBlock3D[]> Rows => Conveyor == null ? System.Array.Empty<ConveyorBlock3D[]>()
+            : Conveyor.Items.GroupBy(item => (item.transform.parent, item.RowIndex))
+                .Select(row => row.OrderBy(item => item.LaneIndex).ToArray()).ToArray();
         private List<ConveyorBlock3D> _pickupOverride;
         public void SetPickupOverride(List<ConveyorBlock3D> overrideList) => _pickupOverride = overrideList;
 
         public IReadOnlyList<ConveyorBlock3D> PickupBlocks => _pickupOverride ?? GetSourcePickupBlocks();
-        private readonly List<ConveyorBlock3D[]> _rows = new();
         private readonly List<MacaronTray> _trays = new();
         private readonly MacaronTray[] _slots = new MacaronTray[6];
         private readonly List<Material> _materials = new();

@@ -151,6 +151,19 @@ namespace BlockShooter.Editor
         [MenuItem("Tools/Macaron Factory/Run Checks")]
         public static void RunChecks()
         {
+            for (int preset = 0; preset < 10; preset++)
+            {
+                var main = SodaConveyor.StageLayout.MainGroups(preset);
+                var original = SodaConveyor.StageLayout.Branches(preset);
+                var feeders = SodaConveyor.StageLayout.FeedAllFromBranches(preset, main, original);
+                Check(feeders.Length > 0, "Every stage needs an inlet when the loop starts empty");
+                var before = main.Concat(original.SelectMany(branch => branch.Groups)).GroupBy(group => group.Color)
+                    .ToDictionary(group => group.Key, group => group.Sum(batch => batch.RowCount));
+                var after = feeders.SelectMany(branch => branch.Groups).GroupBy(group => group.Color)
+                    .ToDictionary(group => group.Key, group => group.Sum(batch => batch.RowCount));
+                Check(before.Count == after.Count && before.All(pair => after.TryGetValue(pair.Key, out int rows) && rows == pair.Value),
+                    "Moving the initial supply to feeders must preserve every color's row count");
+            }
             Check(MacaronLoopFlow.IsInPickupWindow(.8f, 1, 0, 10), "All rows inside the gate can be picked up, not just the nearest row");
             Check(MacaronLoopFlow.IsInPickupWindow(9.8f, 1, .3f, 10), "A cake crossing the gate between frames must still be picked up");
             Check(!MacaronLoopFlow.IsInPickupWindow(9.8f, 1, .1f, 10), "A cake that passed the gate earlier must wait for the next lap");
@@ -190,7 +203,7 @@ namespace BlockShooter.Editor
                         Check(tray.Label.text == "?", "Hidden tray must display a question mark");
                 }
                 Check(factory.Conveyor != null && factory.Conveyor.SplineWorldLength > 0, "Source spline must be initialized");
-                Check(factory.Rows.All(row => row.Length == SodaConveyor.StageGroupSpec.LaneCount), "Source rows must have four lanes");
+                Check(factory.Rows.All(row => row.Length > 0 && row.Length <= SodaConveyor.StageGroupSpec.LaneCount), "Live source rows must fit four lanes");
                 Check(factory.PickupBlocks.All(block => block.Phase == ConveyorItemPhase.OnLoop && !block.IsDestroyed &&
                     factory.Conveyor.IsInExitWindow(block.PathT)), "Only live loop items inside the pickup window can fill trays");
 
@@ -229,6 +242,10 @@ namespace BlockShooter.Editor
                 Check(factory.TryUnlockSlot() && factory.TryUnlockSlot(), "Both locked slots can be purchased");
                 Check(factory.OpenSlots == 6 && SaveManager.Coins == factory.unlockSlotCost, "Spend exactly once per slot");
                 Check(!factory.TryUnlockSlot() && SaveManager.Coins == factory.unlockSlotCost, "Never charge for a seventh slot");
+                float feedDeadline = Time.realtimeSinceStartup + 30;
+                while (factory.Conveyor.Items.Select(item => item.ColorType).Distinct().Count() < 2 && Time.realtimeSinceStartup < feedDeadline)
+                    yield return null;
+                Check(factory.Conveyor.Items.Select(item => item.ColorType).Distinct().Count() >= 2, "Feeders must introduce items onto the empty loop");
                 CheckDeadlockAndReservations(factory);
                 var first = factory.Conveyor.Items.First();
                 float previousT = first.PathT;
@@ -280,8 +297,8 @@ namespace BlockShooter.Editor
         {
             var slots = (MacaronTray[])typeof(MacaronFactory).GetField("_slots", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(factory);
             var testPickup = new List<ConveyorBlock3D>();
-            var first = factory.Rows[0][0];
-            var later = factory.Rows.SelectMany(r => r).First(b => b.ColorType != first.ColorType);
+            var first = factory.Conveyor.Items.First();
+            var later = factory.Conveyor.Items.First(b => b.ColorType != first.ColorType);
             var temporary = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<MacaronTray>("Assets/MacaronFactory/Prefabs/Tray_2x4.prefab"));
             try
             {
