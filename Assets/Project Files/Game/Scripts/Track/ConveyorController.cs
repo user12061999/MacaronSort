@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Splines;
@@ -6,8 +7,8 @@ namespace BlockShooter
 {
     /// <summary>
     /// Moves pre-placed BlockGroup children along a SplineContainer loop.
-    /// Replaces the old ConveyorPathController. Block GameObjects are created
-    /// by the Level Editor tool — this script only animates them at runtime.
+    /// Cloned directly from Soda Shippers ConveyorController.
+    /// Supports deterministic slot grid, branch merging, exit windows, and item tracking.
     /// </summary>
     [RequireComponent(typeof(SplineContainer))]
     public class ConveyorController : MonoBehaviour
@@ -17,7 +18,8 @@ namespace BlockShooter
         [Header("Movement")]
         public float speed = 1.5f;
         public bool  loop  = true;
-        public bool automaticMotion = true;
+        public bool  automaticMotion = true;
+        public float stopBeforeExitDistance = 0.5f;
 
         [Header("Direction Arrows")]
         [Tooltip("Arrow prefab that moves along the track")]
@@ -25,20 +27,31 @@ namespace BlockShooter
         [Tooltip("World-unit distance between consecutive arrows")]
         public float      arrowSpacing = 2.0f;
 
+        [Header("Exit / pickup window")]
+        [Range(0f, 0.5f)] public float exitWindowFraction = 0.35f;
+
         public bool  IsFrozen         { get => _isFrozen; set => _isFrozen = value; }
+        public float Speed            { get => speed; set => speed = value; }
         public float SplineWorldLength => _splineWorldLength;
         public SplineContainer SplineContainer => _splineContainer;
+
+        public float OuterRadius
+        {
+            get
+            {
+                var builder = GetComponent<ConveyorTrackMeshBuilder>();
+                return builder != null ? (builder.beltHalfWidth + builder.railWidth) : 0.55f;
+            }
+        }
 
         private SplineContainer _splineContainer;
         private float _splineWorldLength;
         private float _baseSpeed = 1.5f;
+        private float _speedMultiplier = 1f;
         private bool  _isFrozen;
         private float _travelT = 0f;
 
-        private readonly List<GroupEntry> _groups = new();
-        private readonly List<ArrowMarker> _arrows = new();
-
-        private struct GroupEntry
+        public struct GroupEntry
         {
             public BlockGroup Group;
             public float HeadT;
@@ -49,25 +62,31 @@ namespace BlockShooter
         {
             public Transform Transform;
             public float T;
-            public Quaternion PrefabLocalRot; // applied on top of spline tangent
+            public Quaternion PrefabLocalRot;
         }
 
-        // ── Deterministic Slot Grid ──────────────────────────────────────────────
-        // Every row on the main conveyor occupies a tracked slot. Slots move with
-        // the belt each frame. When all lanes in a row are destroyed, the slot is
-        // freed. Branch paths merge blocks into free slots — no rounding, no gaps.
-        private struct ConveyorSlot
+        public struct ConveyorSlot
         {
             public float RowT;        // Current spline T of this row (updated every frame)
             public bool  IsOccupied;  // false = all lanes destroyed (or never filled) → branch can use this slot
             public int   LiveLanes;   // Bitmask of lanes still alive (bits 0-4). 0 = fully free.
         }
+
+        private readonly List<GroupEntry> _groups = new();
+        private readonly List<ArrowMarker> _arrows = new();
         private readonly List<ConveyorSlot> _slots = new();
+        private readonly List<BranchPath> _branchPaths = new();
+
+        public IReadOnlyList<GroupEntry> Groups => _groups;
+        public IReadOnlyList<ConveyorSlot> Slots => _slots;
 
         private void Awake()
         {
-            if (!Application.isPlaying) return;
-            if (Instance != null && Instance != this) Destroy(Instance.gameObject);
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
             Instance = this;
             _splineContainer = GetComponent<SplineContainer>();
         }
@@ -77,9 +96,6 @@ namespace BlockShooter
             if (Instance == this) Instance = null;
         }
 
-        /// <summary>
-        /// Called by LevelRoot.Initialize(). Scans BlockGroup children and starts movement.
-        /// </summary>
         public void Initialize(float speedMultiplier = 1f)
         {
             if (_splineContainer == null) _splineContainer = GetComponent<SplineContainer>();
@@ -90,14 +106,20 @@ namespace BlockShooter
             }
             else
             {
-                _baseSpeed = speed; // fallback to serialized
+                _baseSpeed = speed;
             }
 
+            _speedMultiplier = speedMultiplier;
             UpdateConveyorSpeed();
-            _splineWorldLength = SplineUtility.CalculateLength(
-                _splineContainer.Spline, transform.localToWorldMatrix);
+
+            if (_splineContainer != null && _splineContainer.Spline != null)
+            {
+                _splineWorldLength = SplineUtility.CalculateLength(
+                    _splineContainer.Spline, transform.localToWorldMatrix);
+            }
 
             _slots.Clear();
+            _groups.Clear();
 
             var blockGroups = GetComponentsInChildren<BlockGroup>(true);
             float currentT = 0f;
@@ -108,15 +130,11 @@ namespace BlockShooter
 
                 group.Initialize();
 
-                // Register a slot for each row in this group before calling AddGroup,
-                // so headT matches exactly what AddGroup will use.
                 float groupTLength = _splineWorldLength > 0f ? group.SplineLength / _splineWorldLength : 0f;
                 for (int r = 0; r < group.RowCount; r++)
                 {
-                    // Mirror the same formula used in PlaceGroupAtT so positions are identical.
                     float rowT = (currentT + (float)(group.RowCount - 1 - r) / group.RowCount * groupTLength) % 1f;
 
-                    // Compute live-lane bitmask: every lane that has a non-null, non-destroyed block.
                     int liveMask = 0;
                     for (int l = 0; l < group.LaneCount && l < 5; l++)
                     {
@@ -132,7 +150,6 @@ namespace BlockShooter
                         IsOccupied = liveMask != 0
                     });
 
-                    // Hook into block destroy events to keep the slot live-mask up to date.
                     int slotIdx = _slots.Count - 1;
                     for (int l = 0; l < group.LaneCount && l < 5; l++)
                     {
@@ -149,13 +166,53 @@ namespace BlockShooter
             }
 
             // Initialize all branch paths in the scene
-            var branchPaths = FindObjectsOfType<BranchPath>();
+            _branchPaths.Clear();
+            var branchPaths = FindObjectsByType<BranchPath>(FindObjectsSortMode.None);
             foreach (var bp in branchPaths)
             {
+                _branchPaths.Add(bp);
                 bp.Initialize();
             }
 
             SpawnArrows();
+        }
+
+        public void EnsureLoopSlots(float rowSpacing)
+        {
+            if (!loop || _splineWorldLength <= 0f || rowSpacing <= 0f) return;
+            int totalSlots = Mathf.Max(1, Mathf.RoundToInt(_splineWorldLength / rowSpacing));
+            float slotStep = 1f / totalSlots;
+
+            if (_slots.Count == 0)
+            {
+                for (int i = 0; i < totalSlots; i++)
+                {
+                    _slots.Add(new ConveyorSlot { RowT = i * slotStep, IsOccupied = false, LiveLanes = 0 });
+                }
+                return;
+            }
+
+            for (int i = 0; i < totalSlots; i++)
+            {
+                float targetT = i * slotStep;
+                bool exists = false;
+                for (int s = 0; s < _slots.Count; s++)
+                {
+                    float diff = Mathf.Abs(_slots[s].RowT - targetT);
+                    diff = Mathf.Min(diff, 1f - diff);
+                    if (diff < slotStep * 0.5f) { exists = true; break; }
+                }
+                if (!exists)
+                {
+                    _slots.Add(new ConveyorSlot { RowT = targetT, IsOccupied = false, LiveLanes = 0 });
+                }
+            }
+        }
+
+        public void RegisterBranchPath(BranchPath branch)
+        {
+            if (branch != null && !_branchPaths.Contains(branch))
+                _branchPaths.Add(branch);
         }
 
         private void SpawnArrows()
@@ -173,6 +230,7 @@ namespace BlockShooter
             {
                 float t = (float)i / count;
                 var go = Instantiate(arrowPrefab, transform);
+                go.hideFlags = HideFlags.DontSave;
                 var marker = new ArrowMarker { Transform = go.transform, T = t, PrefabLocalRot = prefabRot };
                 PlaceArrow(go.transform, t, prefabRot);
                 _arrows.Add(marker);
@@ -181,15 +239,14 @@ namespace BlockShooter
 
         private void PlaceArrow(Transform obj, float t, Quaternion prefabLocalRot)
         {
-            if (_splineContainer == null) return;
+            if (_splineContainer == null || _splineContainer.Spline == null || obj == null) return;
             _splineContainer.Spline.Evaluate(t, out var pos, out var tangent, out var up);
 
             pos.y = 0f;
+            obj.position = transform.TransformPoint((Vector3)pos);
 
-            obj.position = transform.TransformPoint(pos);
-
-            Vector3 fwd = transform.TransformDirection((Vector3)tangent).normalized;
-            Vector3 upDir = transform.TransformDirection((Vector3)up).normalized;
+            Vector3 fwd = transform.TransformDirection(((Vector3)tangent).normalized);
+            Vector3 upDir = transform.TransformDirection(((Vector3)up).normalized);
             if (upDir == Vector3.zero) upDir = Vector3.up;
             if (fwd != Vector3.zero)
                 obj.rotation = Quaternion.LookRotation(fwd, upDir) * prefabLocalRot;
@@ -197,32 +254,38 @@ namespace BlockShooter
 
         private void Update()
         {
-            if (!automaticMotion || _isFrozen || !GameManager.Instance.IsPlaying) return;
-            AdvanceBy(speed * Time.smoothDeltaTime);
+            if (_isFrozen) return;
+            if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
+            if (_splineWorldLength <= 0f) return;
+
+            if (automaticMotion)
+            {
+                AdvanceBy(speed * Time.smoothDeltaTime);
+            }
         }
 
-        // Shared spline/slot/arrow motion for continuous and row-gated gameplay.
-        public void AdvanceBy(float worldDistance) => AdvanceBy(worldDistance, true);
-
-        // Macaron Factory uses the physical end of an open conveyor instead of wrapping at t = 1.
-        public void AdvanceByToEnd(float worldDistance) => AdvanceBy(worldDistance, false);
-
-        private void AdvanceBy(float worldDistance, bool wrap)
+        public void AdvanceBy(float worldDistance)
         {
-            if (float.IsNaN(worldDistance) || float.IsInfinity(worldDistance))
-                throw new System.ArgumentOutOfRangeException(nameof(worldDistance));
             if (_splineWorldLength <= 0f) return;
 
             float delta = worldDistance / _splineWorldLength;
-            _travelT = MoveT(_travelT, delta, wrap);
+            _travelT = (_travelT + delta) % 1f;
 
             for (int i = 0; i < _groups.Count; i++)
             {
                 var entry = _groups[i];
                 if (entry.Group == null) continue;
 
-                entry.HeadT = MoveT(entry.HeadT, delta, wrap);
-                entry.TailT = MoveT(entry.TailT, delta, wrap);
+                if (loop)
+                {
+                    entry.HeadT = (entry.HeadT + delta) % 1f;
+                    entry.TailT = (entry.TailT + delta) % 1f;
+                }
+                else
+                {
+                    entry.HeadT += delta;
+                    entry.TailT += delta;
+                }
                 _groups[i]  = entry;
 
                 PlaceGroupAtT(entry.Group, entry.HeadT);
@@ -232,7 +295,7 @@ namespace BlockShooter
             for (int i = 0; i < _slots.Count; i++)
             {
                 var s = _slots[i];
-                s.RowT = MoveT(s.RowT, delta, wrap);
+                s.RowT = loop ? (s.RowT + delta) % 1f : (s.RowT + delta);
                 _slots[i] = s;
             }
 
@@ -241,14 +304,11 @@ namespace BlockShooter
                 var a = _arrows[i];
                 if (a.Transform == null) continue;
 
-                a.T = MoveT(a.T, delta, wrap);
+                a.T = (a.T + delta) % 1f;
                 _arrows[i] = a;
                 PlaceArrow(a.Transform, a.T, a.PrefabLocalRot);
             }
         }
-
-        private static float MoveT(float currentT, float delta, bool wrap) =>
-            wrap ? Mathf.Repeat(currentT + delta, 1f) : Mathf.Min(currentT + delta, 1f);
 
         public void AddGroup(BlockGroup group, float startT = 0f)
         {
@@ -257,7 +317,7 @@ namespace BlockShooter
             {
                 Group = group,
                 HeadT = startT,
-                TailT = (startT + groupTLength) % 1f
+                TailT = loop ? ((startT + groupTLength) % 1f) : (startT + groupTLength)
             });
             group.transform.SetParent(transform, false);
             PlaceGroupAtT(group, startT);
@@ -276,20 +336,6 @@ namespace BlockShooter
             return -1f;
         }
 
-        public void SetGroupHeadT(BlockGroup group, float headT)
-        {
-            for (int i = 0; i < _groups.Count; i++)
-            {
-                var entry = _groups[i];
-                if (entry.Group != group) continue;
-                entry.HeadT = Mathf.Clamp01(headT);
-                entry.TailT = Mathf.Clamp01(entry.HeadT + WorldLengthToT(group.SplineLength));
-                _groups[i] = entry;
-                PlaceGroupAtT(group, entry.HeadT);
-                return;
-            }
-        }
-
         public void ForceUpdateGroupPosition(BlockGroup group)
         {
             foreach (var entry in _groups)
@@ -302,143 +348,47 @@ namespace BlockShooter
             }
         }
 
-        public bool IsGapAt(float t) => IsTrackEmptyAt(t);
-
-        public void RegisterExternalBlock(ConveyorBlock3D block, float connectionT)
-        {
-            block.transform.SetParent(transform, true);
-        }
-
-        public void DestroyBlocksInFireRange()
-        {
-            if (FireRange.Instance == null) return;
-            var bounds = FireRange.Instance.GetBounds();
-            foreach (var entry in _groups)
-            {
-                if (entry.Group == null || entry.Group.IsEmpty) continue;
-                entry.Group.DestroyBlocksInBounds(bounds);
-            }
-        }
-
         public void SetSpeedMultiplier(float multiplier)
         {
-            speed = _baseSpeed * multiplier;
+            _speedMultiplier = Mathf.Max(0.1f, multiplier);
+            UpdateConveyorSpeed();
         }
 
         public void UpdateConveyorSpeed()
         {
-            if (GameManager.Instance == null) return;
+            float baseSpeedVal = _baseSpeed;
+            if (GameManager.Instance != null && GameManager.Instance.config != null)
+                baseSpeedVal = GameManager.Instance.config.conveyorSpeed;
 
-            float baseSpeedVal = GameManager.Instance.config != null ? GameManager.Instance.config.conveyorSpeed : 0.7f;
-
-            if (GameManager.Instance.IsEndGameSpeedActive)
-            {
-                speed = 2.1f;
-            }
-            else if (UIManager.SpeedMultiplier > 1.5f) // x2 active
-            {
-                speed = 1.2f;
-            }
-            else // x1 active
-            {
-                speed = baseSpeedVal; // 0.7f
-            }
-        }
-
-        public float GetAlignedT(float targetT, float rowSpacing)
-        {
-            if (_splineWorldLength <= 0f) return targetT;
-
-            float dT = rowSpacing / _splineWorldLength;
-            if (dT <= 0f) return targetT;
-
-            // Express targetT relative to _travelT
-            float relativeT = targetT - _travelT;
-            
-            // Wrap to [0, 1) range
-            relativeT = (relativeT % 1f + 1f) % 1f;
-
-            // Find nearest slot index
-            float slotIndex = Mathf.Round(relativeT / dT);
-            
-            // Reconstruct aligned T
-            float alignedT = (_travelT + slotIndex * dT) % 1f;
-            alignedT = (alignedT + 1f) % 1f;
-            
-            return alignedT;
+            speed = baseSpeedVal * _speedMultiplier;
         }
 
         // ── Deterministic Slot Grid API ──────────────────────────────────────────
 
-        /// <summary>
-        /// Finds the T of the nearest free (unoccupied) slot at or behind targetT,
-        /// going in the conveyor's forward direction. The caller receives the exact
-        /// real-time T of an existing slot — no rounding or grid snapping occurs.
-        /// Returns -1 if no free slot is found within maxSearchDistance (in T units).
-        /// </summary>
-        public float FindNearestFreeSlotT(float targetT, float maxSearchDistanceT = 0.5f)
+        public float FindClosestFreeSlotNearWorldPos(Vector3 mergeWorldPos, float maxWorldDistMeters)
         {
-            if (_slots.Count == 0) return -1f;
+            if (_slots.Count == 0 || _splineContainer == null) return -1f;
 
-            float bestDist = float.MaxValue;
-            float bestT    = -1f;
+            float bestDistSq = maxWorldDistMeters * maxWorldDistMeters;
+            float bestT      = -1f;
 
             foreach (var slot in _slots)
             {
                 if (slot.IsOccupied) continue;
 
-                // Forward-arc distance: how far BEHIND targetT is this free slot?
-                // We measure "behind" as the slot being in the direction the conveyor came FROM.
-                // On a loop [0,1), behind targetT means the slot is at T < targetT
-                // (accounting for wrap-around). We prefer the closest one.
-                float dist = (targetT - slot.RowT + 1f) % 1f;
-                // dist == 0 means exact match; dist close to 1 means it is just ahead (wrap)
-                // We want the smallest positive dist (i.e., slot is at or behind targetT).
-                if (dist > maxSearchDistanceT) continue; // too far behind, skip
+                _splineContainer.Spline.Evaluate(slot.RowT, out var localPos, out _, out _);
+                Vector3 worldPos = transform.TransformPoint((Vector3)localPos);
 
-                if (dist < bestDist)
+                float distSq = (worldPos - mergeWorldPos).sqrMagnitude;
+                if (distSq < bestDistSq)
                 {
-                    bestDist = dist;
-                    bestT    = slot.RowT;
+                    bestDistSq = distSq;
+                    bestT      = slot.RowT;
                 }
             }
             return bestT;
         }
 
-        /// <summary>
-        /// Returns the free slot nearest to targetT (in either direction, closest wins).
-        /// Used by branches to pick the optimal insertion point independent of direction.
-        /// Returns -1 if none found within maxSearchDistanceT.
-        /// </summary>
-        public float FindClosestFreeSlotT(float targetT, float maxSearchDistanceT = 0.5f)
-        {
-            if (_slots.Count == 0) return -1f;
-
-            float bestDist = float.MaxValue;
-            float bestT    = -1f;
-
-            foreach (var slot in _slots)
-            {
-                if (slot.IsOccupied) continue;
-
-                // Circular distance in either direction
-                float diff = Mathf.Abs(slot.RowT - targetT);
-                float dist = Mathf.Min(diff, 1f - diff);
-                if (dist > maxSearchDistanceT) continue;
-
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestT    = slot.RowT;
-                }
-            }
-            return bestT;
-        }
-
-        /// <summary>
-        /// Marks the slot nearest to slotT as occupied so no other branch targets it
-        /// in the same frame. Call this immediately after InsertGroupAt.
-        /// </summary>
         public int ClaimNearestSlot(float slotT, float tolerance)
         {
             float bestDist = float.MaxValue;
@@ -447,7 +397,7 @@ namespace BlockShooter
             {
                 if (_slots[i].IsOccupied) continue;
                 float diff = Mathf.Abs(_slots[i].RowT - slotT);
-                float dist = Mathf.Min(diff, 1f - diff);
+                float dist = loop ? Mathf.Min(diff, 1f - diff) : diff;
                 if (dist < bestDist && dist <= tolerance)
                 {
                     bestDist = dist;
@@ -476,11 +426,7 @@ namespace BlockShooter
             block.OnDestroyed += (_) => ClearSlotLane(slotIdx, lane);
         }
 
-        /// <summary>
-        /// Called by the block-destroy event hook. Clears a lane bit in the slot at slotIdx.
-        /// When all lanes are cleared, marks the slot free for future branch placement.
-        /// </summary>
-        private void ClearSlotLane(int slotIdx, int lane)
+        public void ClearSlotLane(int slotIdx, int lane)
         {
             if (slotIdx < 0 || slotIdx >= _slots.Count) return;
             var s = _slots[slotIdx];
@@ -489,85 +435,22 @@ namespace BlockShooter
             _slots[slotIdx] = s;
         }
 
-        /// <summary>
-        /// Finds the T of the nearest free slot whose WORLD POSITION is within
-        /// maxWorldDistMeters of mergeWorldPos. This is geometrically exact and
-        /// independent of spline parameterization — no T-value arithmetic, no
-        /// rounding. Use this in branch merge checks instead of T-distance comparisons.
-        ///
-        /// Returns -1 if no free slot is close enough to the merge point right now.
-        /// The branch should simply wait and retry next frame; the belt will bring
-        /// the next slot into range.
-        /// </summary>
-        public float FindClosestFreeSlotNearWorldPos(Vector3 mergeWorldPos, float maxWorldDistMeters)
+        public void PlaceGroupAtT(BlockGroup group, float headT)
         {
-            if (_slots.Count == 0 || _splineContainer == null) return -1f;
-
-            float bestDistSq = maxWorldDistMeters * maxWorldDistMeters;
-            float bestT      = -1f;
-
-            foreach (var slot in _slots)
-            {
-                if (slot.IsOccupied) continue;
-
-                // Evaluate the spline at this slot's current T to get its world position.
-                _splineContainer.Spline.Evaluate(slot.RowT, out var localPos, out _, out _);
-                Vector3 worldPos = transform.TransformPoint((Vector3)localPos);
-
-                float distSq = (worldPos - mergeWorldPos).sqrMagnitude;
-                if (distSq < bestDistSq)
-                {
-                    bestDistSq = distSq;
-                    bestT      = slot.RowT;
-                }
-            }
-            return bestT;
-        }
-
-
-
-
-
-        public List<ConveyorBlock3D> GetOrderedBlocks(BlockColorType colorType)
-        {
-            var result = new List<ConveyorBlock3D>();
-            foreach (var entry in _groups)
-            {
-                if (entry.Group == null || entry.Group.IsEmpty) continue;
-                if (entry.Group.colorType != colorType) continue;
-
-                for (int row = 0; row < entry.Group.RowCount; row++)
-                    for (int lane = 0; lane < entry.Group.LaneCount; lane++)
-                    {
-                        var block = entry.Group.GetBlock(row, lane);
-                        if (block != null && !block.IsDestroyed && block.gameObject.activeSelf)
-                            result.Add(block);
-                    }
-            }
-            return result;
-        }
-
-        private void PlaceGroupAtT(BlockGroup group, float headT)
-        {
-            if (_splineWorldLength <= 0f) return;
-
-            // Move the parent first, otherwise it offsets children after their world poses are set.
-            _splineContainer.Spline.Evaluate(headT, out var hPos, out _, out _);
-            group.transform.position = transform.TransformPoint(hPos);
+            if (_splineWorldLength <= 0f || group == null || _splineContainer == null) return;
 
             float groupTLength = group.SplineLength / _splineWorldLength;
 
             for (int row = 0; row < group.RowCount; row++)
             {
-                // Row_0 = leading edge (highest T offset → enters fire range first).
-                // Row_N-1 = trailing edge (T = headT → enters last).
-                float rowT = headT + (float)(group.RowCount - 1 - row) / group.RowCount * groupTLength;
-                rowT = loop ? Mathf.Repeat(rowT, 1) : Mathf.Clamp01(rowT);
+                float rowT = (headT + (float)(group.RowCount - 1 - row) / Mathf.Max(1, group.RowCount) * groupTLength);
+                if (loop) rowT = Mathf.Repeat(rowT, 1f);
+
                 _splineContainer.Spline.Evaluate(rowT, out var pos, out var tangent, out var up);
 
-                Vector3 worldPos = transform.TransformPoint(pos);
-                Vector3 fwd     = transform.TransformDirection((Vector3)tangent).normalized;
-                Vector3 upDir   = transform.TransformDirection((Vector3)up).normalized;
+                Vector3 worldPos = transform.TransformPoint((Vector3)pos);
+                Vector3 fwd     = transform.TransformDirection(((Vector3)tangent).normalized);
+                Vector3 upDir   = transform.TransformDirection(((Vector3)up).normalized);
                 if (upDir == Vector3.zero) upDir = Vector3.up;
                 Vector3 right   = Vector3.Cross(upDir, fwd).normalized;
                 Quaternion rot  = fwd != Vector3.zero ? Quaternion.LookRotation(fwd, upDir) : Quaternion.identity;
@@ -575,7 +458,7 @@ namespace BlockShooter
                 for (int lane = 0; lane < group.LaneCount; lane++)
                 {
                     var block = group.GetBlock(row, lane);
-                    if (block == null || block.IsDestroyed || !block.gameObject.activeSelf) continue;
+                    if (block == null || !block.gameObject.activeSelf || block.IsDestroyed) continue;
                     float xOff = (lane - (group.LaneCount - 1) * 0.5f) * group.LaneSpacing;
                     Vector3 targetPos = worldPos + right * xOff;
                     Quaternion targetRot = rot;
@@ -593,10 +476,9 @@ namespace BlockShooter
                         block.transform.rotation = Quaternion.Slerp(block.jumpStartRot, targetRot, tVal);
 
                         // Squash and stretch along the jump path:
-                        // Stretch vertically when rising/falling, squash slightly at the peak
-                        float sinVal = Mathf.Sin(tVal * Mathf.PI); // 0 at start -> 1 at peak -> 0 at end
-                        float scaleY = 1.0f + (0.18f * (1.0f - sinVal));   // taller at start and end
-                        float scaleXZ = 1.0f - (0.09f * (1.0f - sinVal));  // thinner at start and end
+                        float sinVal = Mathf.Sin(tVal * Mathf.PI);
+                        float scaleY = 1.0f + (0.18f * (1.0f - sinVal));
+                        float scaleXZ = 1.0f - (0.09f * (1.0f - sinVal));
                         block.transform.localScale = new Vector3(scaleXZ, scaleY, scaleXZ);
                     }
                     else
@@ -605,7 +487,6 @@ namespace BlockShooter
                         block.transform.rotation = targetRot;
                     }
 
-                    // Centralized FireRange Entry Check: avoids individual block Update() overhead.
                     if (!block.IsDestroyed && !block.HasEnteredFireRange && FireRange.Instance != null)
                     {
                         if (FireRange.Instance.GetBounds().Contains(block.transform.position))
@@ -616,24 +497,131 @@ namespace BlockShooter
                 }
             }
 
+            _splineContainer.Spline.Evaluate(headT, out var hPos, out _, out _);
+            group.transform.position = transform.TransformPoint(hPos);
         }
 
-        private bool IsTrackEmptyAt(float t)
+        public Vector3 EvaluateWorld(float rawT, out Vector3 worldForward)
         {
+            if (_splineContainer == null)
+            {
+                worldForward = transform.forward;
+                return transform.position;
+            }
+            float t = loop ? Mathf.Repeat(rawT, 1f) : Mathf.Clamp01(rawT);
+            _splineContainer.Spline.Evaluate(t, out var pos, out var tan, out _);
+            worldForward = transform.TransformDirection((Vector3)tan).normalized;
+            return transform.TransformPoint((Vector3)pos);
+        }
+
+        public bool IsInExitWindow(float rawT)
+        {
+            if (!loop)
+            {
+                float stopT = Mathf.Clamp01(1f - stopBeforeExitDistance / _splineWorldLength);
+                return rawT >= stopT - exitWindowFraction - 0.001f;
+            }
+            float dist = Mathf.Repeat(-rawT, 1f);
+            return dist <= exitWindowFraction;
+        }
+
+        public List<ConveyorBlock3D> GetPickupBlocks()
+        {
+            var result = new List<ConveyorBlock3D>();
+            if (_groups.Count == 0) return result;
+
+            float searchWindow = Mathf.Max(exitWindowFraction, 0.35f);
+
             foreach (var entry in _groups)
             {
-                if (entry.Group == null) continue;
-                float head = entry.HeadT, tail = entry.TailT;
-                if (head <= tail)
+                if (entry.Group == null || entry.Group.IsEmpty) continue;
+
+                float groupTLength = _splineWorldLength > 0f ? entry.Group.SplineLength / _splineWorldLength : 0f;
+
+                for (int r = 0; r < entry.Group.RowCount; r++)
                 {
-                    if (t >= head && t <= tail) return false;
-                }
-                else
-                {
-                    if (t >= head || t <= tail) return false;
+                    float rowT = (entry.HeadT + (float)(entry.Group.RowCount - 1 - r) / Mathf.Max(1, entry.Group.RowCount) * groupTLength) % 1f;
+
+                    float distToExit = loop ? Mathf.Repeat(-rowT, 1f) : Mathf.Abs(1f - rowT);
+                    if (distToExit <= searchWindow)
+                    {
+                        for (int l = 0; l < entry.Group.LaneCount; l++)
+                        {
+                            var b = entry.Group.GetBlock(r, l);
+                            if (b != null && !b.IsDestroyed && !b.IsTargeted && b.gameObject.activeSelf)
+                            {
+                                result.Add(b);
+                            }
+                        }
+                    }
                 }
             }
-            return true;
+
+            result.Sort((a, b) =>
+            {
+                float da = loop ? Mathf.Repeat(-GetBlockT(a), 1f) : Mathf.Abs(1f - GetBlockT(a));
+                float db = loop ? Mathf.Repeat(-GetBlockT(b), 1f) : Mathf.Abs(1f - GetBlockT(b));
+                int cmp = da.CompareTo(db);
+                if (cmp != 0) return cmp;
+                return a.LaneIndex.CompareTo(b.LaneIndex);
+            });
+
+            return result;
+        }
+
+        private float GetBlockT(ConveyorBlock3D block)
+        {
+            var group = block.GetComponentInParent<BlockGroup>();
+            if (group == null) return 0f;
+            float headT = GetGroupHeadT(group);
+            float groupTLength = _splineWorldLength > 0f ? group.SplineLength / _splineWorldLength : 0f;
+            return (headT + (float)(group.RowCount - 1 - block.RowIndex) / Mathf.Max(1, group.RowCount) * groupTLength) % 1f;
+        }
+
+        public bool HasReachableMatch(Predicate<ConveyorBlock3D> match, Func<BlockColorType, bool> colorMatch = null)
+        {
+            if (match == null && colorMatch == null) return false;
+
+            foreach (var entry in _groups)
+            {
+                if (entry.Group == null || entry.Group.IsEmpty) continue;
+                for (int r = 0; r < entry.Group.RowCount; r++)
+                    for (int l = 0; l < entry.Group.LaneCount; l++)
+                    {
+                        var b = entry.Group.GetBlock(r, l);
+                        if (b != null && !b.IsDestroyed)
+                        {
+                            if (match != null && match(b)) return true;
+                            if (colorMatch != null && colorMatch(b.ColorType)) return true;
+                        }
+                    }
+            }
+
+            foreach (var branch in _branchPaths)
+            {
+                if (branch != null)
+                {
+                    foreach (var row in branch.Rows)
+                    {
+                        if (row.Blocks != null)
+                        {
+                            foreach (var b in row.Blocks)
+                            {
+                                if (b != null && !b.IsDestroyed)
+                                {
+                                    if (match != null && match(b)) return true;
+                                    if (colorMatch != null && colorMatch(b.ColorType)) return true;
+                                }
+                            }
+                        }
+                        else if (colorMatch != null)
+                        {
+                            if (colorMatch(row.ColorType)) return true;
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         private void HandleGroupCleared(BlockGroup group)
@@ -659,125 +647,6 @@ namespace BlockShooter
             return _splineWorldLength > 0f ? worldLen / _splineWorldLength : 0f;
         }
 
-        public bool IsRangeEmpty(float startT, float endT)
-        {
-            startT = (startT % 1f + 1f) % 1f;
-            endT = (endT % 1f + 1f) % 1f;
-
-            foreach (var entry in _groups)
-            {
-                if (entry.Group == null || !entry.Group.gameObject.activeInHierarchy) continue;
-
-                float head = entry.HeadT;
-                float tail = entry.TailT;
-
-                if (Overlays(startT, endT, head, tail))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        public bool IsRangeEmptyForLane(float startT, float endT, int laneIndex)
-        {
-            startT = (startT % 1f + 1f) % 1f;
-            endT = (endT % 1f + 1f) % 1f;
-
-            foreach (var entry in _groups)
-            {
-                var group = entry.Group;
-                if (group == null || !group.gameObject.activeInHierarchy) continue;
-
-                float head = entry.HeadT;
-                float tail = entry.TailT;
-
-                // Treat empty groups (newly created merged groups) as occupying all lanes
-                if (group.IsEmpty)
-                {
-                    if (Overlays(startT, endT, head, tail))
-                    {
-                        return false;
-                    }
-                    continue;
-                }
-
-                float groupTLength = group.SplineLength / _splineWorldLength;
-
-                for (int row = 0; row < group.RowCount; row++)
-                {
-                    var block = group.GetBlock(row, laneIndex);
-                    if (block == null || !block.gameObject.activeSelf || block.IsDestroyed) continue;
-
-                    // Calculate the exact T of this row along the spline
-                    float rowT = (head + (float)(group.RowCount - 1 - row) / group.RowCount * groupTLength) % 1f;
-
-                    if (IsTInRange(rowT, startT, endT))
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        public string GetBlockingBlockForLane(float startT, float endT, int laneIndex, BlockGroup ignoreGroup = null)
-        {
-            startT = (startT % 1f + 1f) % 1f;
-            endT = (endT % 1f + 1f) % 1f;
-
-            foreach (var entry in _groups)
-            {
-                var group = entry.Group;
-                if (group == null || !group.gameObject.activeInHierarchy) continue;
-                if (group == ignoreGroup) continue;
-
-                float head = entry.HeadT;
-                float tail = entry.TailT;
-
-                if (group.IsEmpty)
-                {
-                    if (Overlays(startT, endT, head, tail))
-                    {
-                        return $"EmptyGroup:{group.name} [head={head:F3}, tail={tail:F3}]";
-                    }
-                    continue;
-                }
-
-                float groupTLength = group.SplineLength / _splineWorldLength;
-
-                for (int row = 0; row < group.RowCount; row++)
-                {
-                    var block = group.GetBlock(row, laneIndex);
-                    if (block == null || !block.gameObject.activeSelf || block.IsDestroyed) continue;
-
-                    float rowT = (head + (float)(group.RowCount - 1 - row) / group.RowCount * groupTLength) % 1f;
-
-                    if (IsTInRange(rowT, startT, endT))
-                    {
-                        return $"Block:{block.name} under Group:{group.name} [row={row}, lane={laneIndex}, rowT={rowT:F3}]";
-                    }
-                }
-            }
-            return null;
-        }
-
-        private bool IsTInRange(float t, float start, float end)
-        {
-            if (start <= end)
-            {
-                return t >= start && t <= end;
-            }
-            else
-            {
-                return t >= start || t <= end;
-            }
-        }
-
-        /// <summary>
-        /// Returns the set of colors present on the main conveyor (groups managed by this controller only).
-        /// Branch blocks that have not yet merged are excluded.
-        /// </summary>
         public HashSet<BlockColorType> GetLiveColorSet()
         {
             var colors = new HashSet<BlockColorType>();
@@ -796,129 +665,66 @@ namespace BlockShooter
             return colors;
         }
 
-        /// <summary>
-        /// Returns the sum of spline lengths of all active block groups currently on the main conveyor.
-        /// </summary>
-        public float GetTotalOccupiedLength()
+        public List<ConveyorBlock3D> GetOrderedBlocks(BlockColorType colorType)
         {
-            float occupied = 0f;
+            var result = new List<ConveyorBlock3D>();
             foreach (var entry in _groups)
             {
-                if (entry.Group != null && !entry.Group.IsEmpty)
-                {
-                    occupied += entry.Group.SplineLength;
-                }
-            }
-            return occupied;
-        }
+                if (entry.Group == null || entry.Group.IsEmpty) continue;
+                if (entry.Group.colorType != colorType) continue;
 
-        /// <summary>
-        /// Returns true if the conveyor does not have a single continuous gap wide enough to accommodate requiredSpacing.
-        /// </summary>
+                for (int row = 0; row < entry.Group.RowCount; row++)
+                    for (int lane = 0; lane < entry.Group.LaneCount; lane++)
+                    {
+                        var block = entry.Group.GetBlock(row, lane);
+                        if (block != null && !block.IsDestroyed && block.gameObject.activeSelf)
+                            result.Add(block);
+                    }
+            }
+            return result;
+        }
         public bool IsConveyorFull(float requiredSpacing = 0.2f)
         {
-            if (_splineWorldLength <= 0f) return false;
-            if (_groups.Count == 0) return false;
-
-            float requiredT = requiredSpacing / _splineWorldLength;
-
-            // Collect active groups (including empty ones, as they represent active merging slots that reserve space)
-            var sorted = new List<GroupEntry>();
-            foreach (var entry in _groups)
+            if (_slots.Count == 0) return false;
+            foreach (var slot in _slots)
             {
-                if (entry.Group != null)
-                {
-                    sorted.Add(entry);
-                }
+                if (!slot.IsOccupied) return false;
             }
-
-            if (sorted.Count == 0) return false;
-
-            // Sort by HeadT to inspect contiguous gaps
-            sorted.Sort((a, b) => a.HeadT.CompareTo(b.HeadT));
-
-            // Check gaps between consecutive groups (including wrap-around)
-            for (int i = 0; i < sorted.Count; i++)
-            {
-                float currentHead = sorted[i].HeadT;
-                float currentTail = sorted[i].TailT;
-                float nextHead = sorted[(i + 1) % sorted.Count].HeadT;
-
-                float gap = 0f;
-                if (i < sorted.Count - 1)
-                {
-                    if (nextHead >= currentTail)
-                    {
-                        gap = nextHead - currentTail;
-                    }
-                    else
-                    {
-                        gap = 0f; // Overlapping
-                    }
-                }
-                else
-                {
-                    // Last group wrapping around to the first group
-                    if (currentTail < currentHead)
-                    {
-                        // The last group itself wraps around the 1.0 boundary
-                        if (nextHead >= currentTail)
-                        {
-                            gap = nextHead - currentTail;
-                        }
-                        else
-                        {
-                            gap = 0f; // Overlapping
-                        }
-                    }
-                    else
-                    {
-                        // The last group does not wrap around, so the gap wraps around 1.0
-                        if (nextHead >= currentTail)
-                        {
-                            gap = nextHead - currentTail;
-                        }
-                        else
-                        {
-                            gap = (1f - currentTail) + nextHead;
-                        }
-                    }
-                }
-
-                if (gap >= requiredT)
-                {
-                    return false; // Found at least one contiguous gap large enough to fit the merging group
-                }
-            }
-
-            return true; // No single gap is large enough to merge the block
+            return true;
         }
 
-
-        private bool Overlays(float s1, float e1, float s2, float e2)
+        public bool AllGroupsEmpty()
         {
-            if (s1 <= e1)
+            for (int i = 0; i < _groups.Count; i++)
             {
-                if (s2 <= e2)
-                {
-                    return s1 <= e2 && e1 >= s2;
-                }
-                else
-                {
-                    return s1 <= e2 || e1 >= s2;
-                }
+                if (_groups[i].Group != null && !_groups[i].Group.IsEmpty) return false;
             }
-            else
+            for (int i = 0; i < _branchPaths.Count; i++)
             {
-                if (s2 <= e2)
-                {
-                    return s2 <= e1 || e2 >= s1;
-                }
-                else
-                {
-                    return true;
-                }
+                if (_branchPaths[i] != null && !_branchPaths[i].IsFullyMerged) return false;
             }
+            return true;
+        }
+
+        public bool IsLoopEmpty() => AllGroupsEmpty();
+
+        public static float DistanceToExit(float currentT, float conveyorLength, float stopBeforeExitDistance = 0)
+        {
+            if (conveyorLength <= 0 || currentT < 0) return 0;
+            float stopT = Mathf.Clamp01(1 - Mathf.Max(0, stopBeforeExitDistance) / conveyorLength);
+            float distance = (stopT - Mathf.Clamp01(currentT)) * conveyorLength;
+            return distance < .0001f ? 0 : distance;
+        }
+
+        public static bool IsInExitZone(float currentT, float conveyorLength, float exitZoneLength,
+            float stopBeforeExitDistance = 0)
+        {
+            if (conveyorLength <= 0 || currentT < 0 || exitZoneLength <= 0) return false;
+            float stopDistance = Mathf.Max(0, conveyorLength - stopBeforeExitDistance);
+            float currentDistance = currentT * conveyorLength;
+            return currentDistance >= stopDistance - exitZoneLength - .0001f && currentDistance <= stopDistance + .0001f;
         }
     }
+
+    public class ConveyorTrack : ConveyorController { }
 }

@@ -330,7 +330,6 @@ MonoBehaviour:
   - {fileID: 6221063533694578287, guid: 564f6f32629207a47a5af229ddbc807d, type: 3}
   colorRegistry: {fileID: 0}
   conveyorMacaronScale: 1.6
-  conveyorSpeed: 2.4
   macaronExitTime: 0.6
   macaronExitCurve:
     serializedVersion: 2
@@ -398,6 +397,7 @@ MonoBehaviour:
   unlockSlotCost: 100
   shippingReward: 50
   deadlockDelay: 1.5
+  sourceLoopSpeed: 0.09
 --- !u!114 &1412556477
 MonoBehaviour:
   m_ObjectHideFlags: 0

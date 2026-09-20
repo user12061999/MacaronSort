@@ -1,0 +1,156 @@
+// Ported from Soda Shippers Assets/Scripts/Gameplay/Track/StageLayout.cs.
+using System.Collections.Generic;
+
+namespace BlockShooter.SodaConveyor
+{
+    public static class StageLayout
+    {
+        public const int SourceLaneCount = 5;
+        public const float LaneSpacing = 0.22f;
+        sealed class Block
+        {
+            public int Branch;
+            public BlockColorType Color;
+            public int Cans;
+            public int Rows;
+        }
+        public static StageGroupSpec[] MainGroups(int templateIndex) => StageTrackData.MainGroups(templateIndex);
+        public static StageBranchSpec[] Branches(int templateIndex, float contentScale = 1f, int canQuantum = 0)
+        {
+            var source = StageTrackData.Branches(templateIndex);
+            if (source.Length == 0) return source;
+            contentScale = System.Math.Max(1f, contentScale);
+
+            // Source branch groups first (their order within a branch is the merge order), then
+            // one surplus block per main-loop color in first-seen order — deterministic output.
+            var blocks = new List<Block>();
+            for (var b = 0; b < source.Length; b++)
+                foreach (var g in source[b].Groups)
+                    blocks.Add(new Block { Branch = b, Color = g.Color, Cans = g.RowCount * SourceLaneCount });
+
+            // Surplus block per color: the main loop's lost lane, plus this level's extra content
+            // as a share of the color's authored total (main + branches). Colors that only live
+            // on a branch still get their extra share, so scaling keeps the color mix intact.
+            var surplusOrder = new List<BlockColorType>();
+            var surplusCans = new Dictionary<BlockColorType, int>();
+            var authoredCans = new Dictionary<BlockColorType, int>();
+            void Note(BlockColorType color, int authored, int surplus)
+            {
+                if (!authoredCans.ContainsKey(color)) surplusOrder.Add(color);
+                authoredCans.TryGetValue(color, out var a);
+                authoredCans[color] = a + authored;
+                surplusCans.TryGetValue(color, out var n);
+                surplusCans[color] = n + surplus;
+            }
+            foreach (var g in StageTrackData.MainGroups(templateIndex))
+                Note(g.Color, g.RowCount * SourceLaneCount, g.RowCount * (SourceLaneCount - StageGroupSpec.LaneCount));
+            foreach (var b in source)
+                foreach (var g in b.Groups)
+                    Note(g.Color, g.RowCount * SourceLaneCount, 0);
+
+            foreach (var color in surplusOrder)
+            {
+                var authored = authoredCans[color];
+                var target = authored * contentScale;
+                var targetCans = canQuantum > 0
+                    ? (int)System.Math.Ceiling(target / canQuantum - 1e-4f) * canQuantum
+                    : (int)System.Math.Round(target);
+                var cans = surplusCans[color] + System.Math.Max(0, targetCans - authored);
+                if (cans > 0) blocks.Add(new Block { Branch = -1, Color = color, Cans = cans });
+            }
+
+            ApportionRows(blocks);
+
+            var groups = new List<StageGroupSpec>[source.Length];
+            for (var b = 0; b < source.Length; b++)
+                groups[b] = new List<StageGroupSpec>(source[b].Groups.Length + 4);
+
+            foreach (var block in blocks)
+            {
+                if (block.Rows <= 0) continue;
+                if (block.Branch >= 0)
+                {
+                    groups[block.Branch].Add(new StageGroupSpec(block.Color, block.Rows));
+                    continue;
+                }
+
+                var list = groups[PickBranch(groups, block.Color)];
+                var last = list.Count - 1;
+                if (last >= 0 && list[last].Color == block.Color)
+                    list[last] = new StageGroupSpec(block.Color, list[last].RowCount + block.Rows);
+                else
+                    list.Add(new StageGroupSpec(block.Color, block.Rows));
+            }
+
+            var result = new StageBranchSpec[source.Length];
+            for (var b = 0; b < source.Length; b++)
+            {
+                var s = source[b];
+                result[b] = new StageBranchSpec(s.Name, s.MergeT, s.ConnectFromLeft, groups[b].ToArray(), s.Knots);
+            }
+            return result;
+        }
+        static void ApportionRows(List<Block> blocks)
+        {
+            var lanes = StageGroupSpec.LaneCount;
+            var seen = new HashSet<BlockColorType>();
+            foreach (var first in blocks)
+            {
+                if (!seen.Add(first.Color)) continue;
+
+                var total = 0;
+                var floorSum = 0;
+                foreach (var block in blocks)
+                {
+                    if (block.Color != first.Color) continue;
+                    total += block.Cans;
+                    block.Rows = block.Cans / lanes;
+                    floorSum += block.Rows;
+                }
+
+                var leftover = RowsFor(total) - floorSum;
+                while (leftover-- > 0)
+                {
+                    Block best = null;
+                    foreach (var block in blocks)
+                    {
+                        if (block.Color != first.Color) continue;
+                        if (best == null || block.Cans % lanes >= best.Cans % lanes) best = block;
+                    }
+                    if (best == null) break;
+                    best.Rows++;
+                    best.Cans -= best.Cans % lanes; // spent its fraction — don't pick it again for a tie
+                }
+            }
+        }
+        static int RowsFor(int cans)
+        {
+            var lanes = StageGroupSpec.LaneCount;
+            return (cans * 2 + lanes) / (2 * lanes);
+        }
+        static int PickBranch(List<StageGroupSpec>[] groups, BlockColorType color)
+        {
+            var best = -1;
+            var bestRows = int.MaxValue;
+            var bestHasColor = false;
+            for (var b = 0; b < groups.Length; b++)
+            {
+                var rows = 0;
+                var hasColor = false;
+                foreach (var g in groups[b])
+                {
+                    rows += g.RowCount;
+                    if (g.Color == color) hasColor = true;
+                }
+
+                if (hasColor && !bestHasColor || hasColor == bestHasColor && rows < bestRows)
+                {
+                    best = b;
+                    bestRows = rows;
+                    bestHasColor = hasColor;
+                }
+            }
+            return best;
+        }
+    }
+}

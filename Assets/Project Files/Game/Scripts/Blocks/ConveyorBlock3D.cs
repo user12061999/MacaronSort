@@ -4,9 +4,16 @@ using DG.Tweening;
 
 namespace BlockShooter
 {
+    public enum ConveyorItemPhase
+    {
+        OnBranch,
+        OnLoop,
+        Picked,
+    }
+
     /// <summary>
-    /// A single 3D colored block sitting on the conveyor track.
-    /// Destroyed when hit by a matching-color projectile.
+    /// A single 3D colored block/macaron sitting on the conveyor track.
+    /// Destroyed when hit by projectile (BlockShooter) or collected into tray (MacaronSort).
     /// </summary>
     public class ConveyorBlock3D : MonoBehaviour
     {
@@ -17,25 +24,31 @@ namespace BlockShooter
         private bool _isDestroyed;
         private static readonly int ColorProp = Shader.PropertyToID("_BaseColor");
 
-        public BlockColorType ColorType      => _colorType;
-        public bool IsDestroyed              => _isDestroyed;
-        public bool IsTargeted               { get; private set; }
-        public bool HasEnteredFireRange      { get; private set; }
+        public BlockColorType ColorType => _colorType;
+        public bool IsDestroyed => _isDestroyed;
+        public bool IsTargeted { get; private set; }
+        public bool HasEnteredFireRange { get; private set; }
 
-        public void SetTargeted(bool v)      => IsTargeted = v;
-        public void MarkEnteredFireRange()   => HasEnteredFireRange = true;
+        public void SetTargeted(bool v) => IsTargeted = v;
+        public void MarkEnteredFireRange() => HasEnteredFireRange = true;
+
+        public ConveyorItemPhase Phase { get; set; } = ConveyorItemPhase.OnLoop;
+        public float PathT { get; set; }
 
         [HideInInspector] public Vector3 transitionOffset = Vector3.zero;
         [HideInInspector] public Quaternion transitionRotOffset = Quaternion.identity;
 
         [HideInInspector] public Vector3 jumpStartPos;
-        [HideInInspector] public Quaternion jumpStartRot;
+        [HideInInspector] public Quaternion jumpStartRot = Quaternion.identity;
         [HideInInspector] public float jumpProgress = 1f;
 
-        // Serialized so the Level Editor can bake row/lane into the prefab hierarchy.
+        public Vector3 JumpStartPos { get => jumpStartPos; set => jumpStartPos = value; }
+        public Quaternion JumpStartRot { get => jumpStartRot; set => jumpStartRot = value; }
+        public float JumpProgress { get => jumpProgress; set => jumpProgress = value; }
+
         [SerializeField] private int _rowIndex;
         [SerializeField] private int _laneIndex;
-        public int RowIndex  => _rowIndex;
+        public int RowIndex => _rowIndex;
         public int LaneIndex => _laneIndex;
 
         public void SetGroupIndex(int row, int lane) { _rowIndex = row; _laneIndex = lane; }
@@ -44,7 +57,6 @@ namespace BlockShooter
 
         private void Awake()
         {
-            // FireRange uses OnTriggerEnter — block needs a Collider + kinematic Rigidbody
             if (GetComponent<Collider>() == null)
             {
                 var col = gameObject.AddComponent<BoxCollider>();
@@ -54,14 +66,15 @@ namespace BlockShooter
             {
                 var rb = gameObject.AddComponent<Rigidbody>();
                 rb.isKinematic = true;
-                rb.useGravity  = false;
+                rb.useGravity = false;
             }
         }
 
         public void Initialize(BlockColorType colorType, Color color)
         {
-            _colorType   = colorType;
+            _colorType = colorType;
             _isDestroyed = false;
+            Phase = ConveyorItemPhase.OnLoop;
 
             if (blockRenderer != null)
             {
@@ -86,15 +99,12 @@ namespace BlockShooter
             DestroyBlock();
         }
 
-        /// <summary>Externally triggered destruction (e.g. Bomb booster).</summary>
         public void TriggerDestroy()
         {
             if (_isDestroyed) return;
             DestroyBlock();
         }
 
-        // Collection retires the belt entry through the same events, while the caller
-        // owns the macaron's flight/packing animation and completion condition.
         public bool TryCollect()
         {
             if (_isDestroyed || IsTargeted) return false;
@@ -102,9 +112,16 @@ namespace BlockShooter
             return true;
         }
 
+        public void SetPicked()
+        {
+            Phase = ConveyorItemPhase.Picked;
+            TryCollect();
+        }
+
         private void DestroyBlock(bool collected = false)
         {
             _isDestroyed = true;
+            Phase = ConveyorItemPhase.Picked;
 
             if (collected)
             {
@@ -114,7 +131,6 @@ namespace BlockShooter
 
             ScoreManager.Instance?.AddBlockDestroyed();
 
-            // Decrement freeze counts of active frozen blocks in grid (any color)
             if (ShooterGrid.Instance != null)
             {
                 var activeBlocks = ShooterGrid.Instance.GetActiveBlocks();

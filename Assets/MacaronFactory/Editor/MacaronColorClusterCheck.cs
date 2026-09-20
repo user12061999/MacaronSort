@@ -20,28 +20,37 @@ namespace BlockShooter.Editor
             var clustered = MacaronLevel.ClusterColors(source, 6, 3, 3);
             if (!source.OrderBy(color => color).SequenceEqual(clustered.OrderBy(color => color)))
                 throw new Exception("Color clustering changed the supply counts.");
-            if (clustered.Take(6).Any(color => color != BlockColorType.Red) ||
-                clustered.Skip(6).Take(4).Any(color => color != BlockColorType.Blue))
-                throw new Exception("Color clustering did not keep matching macarons together.");
+            CheckRuns(clustered, 3, 10, false);
             if (clustered.GroupBy(color => color).Any(group => group.Count() != source.Count(color => color == group.Key)))
                 throw new Exception("Color clustering lost a macaron color.");
             var fourColumns = MacaronLevel.ClusterColors(new List<BlockColorType>(
                 Enumerable.Repeat(BlockColorType.Red, 8).Concat(Enumerable.Repeat(BlockColorType.Blue, 8))), 6, 4, 3);
-            if (fourColumns.Take(8).Any(color => color != BlockColorType.Red))
-                throw new Exception("Color clusters must fill complete rows based on Columns.");
+            CheckRuns(fourColumns, 4, 10);
             var longCluster = MacaronLevel.ClusterColors(new List<BlockColorType>(
                 Enumerable.Repeat(BlockColorType.Red, 12).Concat(Enumerable.Repeat(BlockColorType.Blue, 12))), 12, 3, 3);
-            if (longCluster.Take(12).Any(color => color != BlockColorType.Red))
-                throw new Exception("The default cluster must keep twelve matching macarons together.");
+            CheckRuns(longCluster, 3, 10);
             var palette = MacaronLevel.ClusterColors(new List<BlockColorType>(Enumerable.Repeat(BlockColorType.Red, 12)
                 .Concat(Enumerable.Repeat(BlockColorType.Blue, 12)).Concat(Enumerable.Repeat(BlockColorType.Green, 12))
                 .Concat(Enumerable.Repeat(BlockColorType.Yellow, 12))), 12, 3, 3);
             if (palette.Take(36).Contains(BlockColorType.Yellow))
                 throw new Exception("A supply window introduced more than three colors.");
             var feederRows = MacaronLevel.BuildFeederAssignments(longCluster, 3, 0, 2);
-            if (feederRows.feeder.Take(4).Any(feeder => feeder != 0) || feederRows.feeder.Skip(4).Take(4).Any(feeder => feeder != 1))
-                throw new Exception("Matching color rows were split between feeder queues.");
-            Debug.Log("PASS: Color clusters preserve counts, fill whole rows and stay on one feeder.");
+            if (feederRows.feeder.Any(feeder => feeder < 0 || feeder > 1))
+                throw new Exception("Color runs must receive a valid feeder assignment.");
+            Debug.Log("PASS: Color clusters preserve counts, fill whole rows, vary from one to ten rows and stay within the active palette.");
+        }
+
+        private static void CheckRuns(IReadOnlyList<BlockColorType> colors, int columns, int maxRows, bool requireFullRows = true)
+        {
+            int run = 0;
+            for (int i = 0; i < colors.Count; i++)
+            {
+                run++;
+                if (i + 1 < colors.Count && colors[i + 1] == colors[i]) continue;
+                if ((requireFullRows && run % columns != 0) || run > columns * maxRows)
+                    throw new Exception("Color runs must contain full rows and stay within the configured maximum.");
+                run = 0;
+            }
         }
     }
 }

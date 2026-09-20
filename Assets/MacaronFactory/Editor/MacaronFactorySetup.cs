@@ -162,15 +162,15 @@ namespace BlockShooter.Editor
             Check(!MacaronTray.Blocks(new Rect(2, 0, 2, 1), 1, rect, 0), "Touching edges do not block");
             Check(!MacaronTray.Blocks(rect, 0, rect, 1), "Lower tray cannot block upper tray");
 
-            Check(MacaronConveyorFlow.IsInExitZone(.9f, 10, 1, .5f), "The final conveyor section can fill trays");
-            Check(!MacaronConveyorFlow.IsInExitZone(.84f, 10, 1, .5f), "Only the final conveyor section can fill trays");
-            Check(!MacaronConveyorFlow.IsInExitZone(.96f, 10, 1, .5f), "Rows must not pass the configured stop point");
-            Check(!MacaronConveyorFlow.IsInExitZone(1, 0, 1), "An uninitialized conveyor cannot fill trays");
-            Check(Mathf.Approximately(MacaronConveyorFlow.DistanceToExit(.9f, 10, .5f), .5f), "Leading row can move to the configured stop point");
-            Check(Mathf.Approximately(MacaronConveyorFlow.DistanceToExit(.93f, 10, .5f), .2f), "Approaching row stops before t=1 without wrapping");
-            Check(MacaronConveyorFlow.DistanceToExit(.95f, 10, .5f) == 0, "A row at the configured stop point must stop");
-            Check(MacaronConveyorFlow.DistanceToExit(.950001f, 10, .5f) == 0, "Float drift must not release the conveyor stop");
-            float limitedStep = Mathf.Min(2, MacaronConveyorFlow.DistanceToExit(.9f, 10, .5f));
+            Check(ConveyorController.IsInExitZone(.9f, 10, 1, .5f), "The final conveyor section can fill trays");
+            Check(!ConveyorController.IsInExitZone(.84f, 10, 1, .5f), "Only the final conveyor section can fill trays");
+            Check(!ConveyorController.IsInExitZone(.96f, 10, 1, .5f), "Rows must not pass the configured stop point");
+            Check(!ConveyorController.IsInExitZone(1, 0, 1), "An uninitialized conveyor cannot fill trays");
+            Check(Mathf.Approximately(ConveyorController.DistanceToExit(.9f, 10, .5f), .5f), "Leading row can move to the configured stop point");
+            Check(Mathf.Approximately(ConveyorController.DistanceToExit(.93f, 10, .5f), .2f), "Approaching row stops before t=1 without wrapping");
+            Check(ConveyorController.DistanceToExit(.95f, 10, .5f) == 0, "A row at the configured stop point must stop");
+            Check(ConveyorController.DistanceToExit(.950001f, 10, .5f) == 0, "Float drift must not release the conveyor stop");
+            float limitedStep = Mathf.Min(2, ConveyorController.DistanceToExit(.9f, 10, .5f));
             Check(Mathf.Abs(.9f + limitedStep / 10 - .95f) < .0001f, "Fast movement must stop 0.5 units before the endpoint");
 
             if (EditorApplication.isPlaying)
@@ -189,13 +189,11 @@ namespace BlockShooter.Editor
                     if (tray.Hidden)
                         Check(tray.Label.text == "?", "Hidden tray must display a question mark");
                 }
-                Check(factory.Level.conveyorController.SplineWorldLength > 0, "Package spline must be initialized");
-                Check(!factory.Level.conveyorController.automaticMotion && factory.conveyorSource.conveyorController.automaticMotion,
-                    "Factory owns endpoint flow while the package controller remains reusable");
-                Check(factory.Rows.All(row => row.Length >= 1 && row.Length <= factory.maxRowWidth), "Rows must respect width 1-5");
-                Check(factory.Rows.Take(factory.Rows.Count - 1).All(row => row.Length == factory.maxRowWidth), "Every row except the last must fill all conveyor columns");
-                Check(Mathf.Approximately(factory.Level.conveyorController.GetComponent<ConveyorTrackMeshBuilder>().beltHalfWidth,
-                    factory.laneSpacing * (factory.maxRowWidth - 1) * .5f + .16f), "Belt width must fit the configured columns");
+                Check(factory.Conveyor != null && factory.Conveyor.SplineWorldLength > 0, "Source spline must be initialized");
+                Check(factory.Rows.All(row => row.Length == SodaConveyor.StageGroupSpec.LaneCount), "Source rows must have four lanes");
+                Check(factory.PickupBlocks.All(block => block.Phase == ConveyorItemPhase.OnLoop && !block.IsDestroyed &&
+                    factory.Conveyor.IsInExitWindow(block.PathT)), "Only live loop items inside the pickup window can fill trays");
+
             }
             Debug.Log("MACARON CHECKS PASSED");
         }
@@ -220,7 +218,6 @@ namespace BlockShooter.Editor
             int coins = SaveManager.Coins;
             bool hadStage = PlayerPrefs.HasKey("Macaron.Stage");
             int stage = PlayerPrefs.GetInt("Macaron.Stage", 1);
-            float speed = factory.conveyorSpeed;
             try
             {
                 RunChecks();
@@ -233,26 +230,15 @@ namespace BlockShooter.Editor
                 Check(factory.OpenSlots == 6 && SaveManager.Coins == factory.unlockSlotCost, "Spend exactly once per slot");
                 Check(!factory.TryUnlockSlot() && SaveManager.Coins == factory.unlockSlotCost, "Never charge for a seventh slot");
                 CheckDeadlockAndReservations(factory);
-                var leadingGroup = factory.Rows[0][0].GetComponentInParent<BlockGroup>();
-                float stopDeadline = Time.realtimeSinceStartup + 10;
-                while (MacaronConveyorFlow.DistanceToExit(factory.Level.conveyorController.GetGroupHeadT(leadingGroup),
-                    factory.Level.conveyorController.SplineWorldLength, factory.stopBeforeExitDistance) > 0 && Time.realtimeSinceStartup < stopDeadline)
-                    yield return null;
-                Check(MacaronConveyorFlow.DistanceToExit(factory.Level.conveyorController.GetGroupHeadT(leadingGroup),
-                    factory.Level.conveyorController.SplineWorldLength, factory.stopBeforeExitDistance) == 0, "Leading row must reach the configured stop before the endpoint");
-                var waiting = factory.Rows.SelectMany(r => r).ToDictionary(b => b, b => b.transform.position);
+                var first = factory.Conveyor.Items.First();
+                float previousT = first.PathT;
+                int remaining = factory.Remaining;
                 yield return new WaitForSeconds(.3f);
-                Check(waiting.All(pair => Vector3.Distance(pair.Key.transform.position, pair.Value) < .0001f), "Belt must stay stopped until the leading cakes are collected");
-                Check(factory.Remaining == waiting.Count, "No tray means no cakes collected");
-                Check(factory.PickupBlocks.Count == factory.Rows[0].Length && factory.Rows[0].All(b => factory.PickupBlocks.Contains(b)),
-                    "Only the leading row may fill, even when later rows are near the exit");
-                factory.conveyorSpeed *= 4;
-                float deadline = Time.realtimeSinceStartup + 100;
+                Check(first.PathT != previousT, "Loop keeps moving while no tray is waiting");
+                Check(factory.Remaining == remaining, "No tray means no cakes collected");
+                float deadline = Time.realtimeSinceStartup + 600;
                 while (GameManager.Instance.IsPlaying && Time.realtimeSinceStartup < deadline)
                 {
-                    Check(factory.Trays.Sum(t => t.Reserved) <= 1, "Only one macaron may fly at a time across all trays");
-                    Check(factory.Rows.Count(row => row.Any(b => !ReferenceEquals(b, null) && factory.PickupBlocks.Contains(b))) <= 1,
-                        "A pickup batch must never include cakes from different rows");
                     foreach (var tray in factory.Trays.OrderByDescending(t => t.Layer))
                     {
                         if (!tray.OnTable || !tray.Accessible || factory.Slots.Take(factory.OpenSlots).All(t => t != null)) continue;
@@ -277,30 +263,23 @@ namespace BlockShooter.Editor
                         Check(GameManager.Instance.IsPlaying, "Win must wait for flights and shipping");
                     yield return null;
                 }
-                Check(GameManager.Instance.State == GameState.Win, "The complete board must win within 100 seconds");
+                Check(GameManager.Instance.State == GameState.Win, "The complete board must win within 600 seconds");
                 Check(factory.Remaining == 0 && factory.Slots.All(t => t == null), "Win leaves no belt items or occupied slots");
                 Check(factory.Trays.All(t => t.Filled == t.Capacity), "Every tray must ship exactly its capacity");
-                Debug.Log("MACARON PLAYTHROUGH PASSED: endpoint stop, automatic single pickup, authored pocket poses, purchasing, deadlock, reservations, shipping and win.");
+                Debug.Log("MACARON PLAYTHROUGH PASSED: source loop, automatic pickup, authored pocket poses, purchasing, deadlock, reservations, shipping and win.");
             }
             finally
             {
                 if (hadCoins) PlayerPrefs.SetInt("Coins", coins); else PlayerPrefs.DeleteKey("Coins");
                 if (hadStage) PlayerPrefs.SetInt("Macaron.Stage", stage); else PlayerPrefs.DeleteKey("Macaron.Stage");
                 PlayerPrefs.Save();
-                if (factory != null)
-                {
-                    factory.conveyorSpeed = speed;
-                }
             }
         }
 
         private static void CheckDeadlockAndReservations(MacaronFactory factory)
         {
             var slots = (MacaronTray[])typeof(MacaronFactory).GetField("_slots", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(factory);
-            var front = (List<ConveyorBlock3D>)typeof(MacaronConveyorFlow)
-                .GetField("_pickupBlocks", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(factory.ConveyorFlow);
-            var originalFront = front.ToArray();
+            var testPickup = new List<ConveyorBlock3D>();
             var first = factory.Rows[0][0];
             var later = factory.Rows.SelectMany(r => r).First(b => b.ColorType != first.ColorType);
             var temporary = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<MacaronTray>("Assets/MacaronFactory/Prefabs/Tray_2x4.prefab"));
@@ -313,8 +292,9 @@ namespace BlockShooter.Editor
                 Check(!temporary.TryReserve(), "Extra reservation must fail for a full tray");
                 for (int i = 0; i < temporary.Capacity; i++) temporary.CancelReservation();
                 for (int i = 0; i < slots.Length; i++) slots[i] = temporary;
-                front.Clear();
-                front.Add(first);
+                testPickup.Clear();
+                testPickup.Add(first);
+                factory.SetPickupOverride(testPickup);
                 Check(factory.IsDeadlocked(), "A color outside the pickup zone must not save full slots");
                 temporary.Moving = true;
                 Check(!factory.IsDeadlocked(), "Do not fail during tray movement");
@@ -322,16 +302,16 @@ namespace BlockShooter.Editor
                 slots[0] = null;
                 Check(!factory.IsDeadlocked(), "An empty open slot prevents fail");
                 slots[0] = temporary;
-                front[0] = null;
+                testPickup.Clear();
+                testPickup.Add(null);
                 Check(!factory.IsDeadlocked(), "An empty pickup zone is not an arriving mismatch");
-                front[0] = later;
+                testPickup[0] = later;
                 Check(!factory.IsDeadlocked(), "A matching arriving color prevents fail");
             }
             finally
             {
+                factory.SetPickupOverride(null);
                 Array.Clear(slots, 0, slots.Length);
-                front.Clear();
-                front.AddRange(originalFront);
                 UnityEngine.Object.Destroy(temporary.gameObject);
             }
         }

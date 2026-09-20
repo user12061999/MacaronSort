@@ -38,6 +38,27 @@ namespace BlockShooter
             return false;
         }
 
+        public bool HasMatchingColor(Func<BlockColorType, bool> needsColor)
+        {
+            if (needsColor == null) return false;
+            foreach (var row in _rows)
+            {
+                bool hasActiveBlock = false;
+                foreach (var b in row.Blocks)
+                {
+                    if (b != null && !b.IsDestroyed)
+                    {
+                        hasActiveBlock = true;
+                        if (needsColor(b.ColorType)) return true;
+                    }
+                }
+                if (hasActiveBlock && needsColor(row.ColorType)) return true;
+            }
+            return false;
+        }
+
+        public IReadOnlyList<BranchRowEntry> Rows => _rows;
+
         private SplineContainer _splineContainer;
         private float _splineLength;
         private float _mergeStopT = 0.95f; // T value where blocks stop (outer wall of main conveyor)
@@ -63,9 +84,69 @@ namespace BlockShooter
             public int SlotIndex;
         }
 
+        public void Setup(
+            ConveyorController track,
+            float branchMergeT,
+            float rowSpacing,
+            float laneSpacing,
+            int laneCount,
+            IReadOnlyList<BlockColorType[]> rows,
+            Func<BlockColorType, int, ConveyorBlock3D> blockSpawner,
+            float? customMergeStopT = null)
+        {
+            _splineContainer = GetComponent<SplineContainer>();
+            mergeT = branchMergeT;
+            _laneSpacing = laneSpacing;
+
+            // Clear any old child groups
+            var oldGroups = GetComponentsInChildren<BlockGroup>(true);
+            foreach (var g in oldGroups)
+            {
+                if (Application.isPlaying) Destroy(g.gameObject);
+                else DestroyImmediate(g.gameObject);
+            }
+
+            // Create BlockGroups for the rows so Initialize() natively reads them
+            if (rows != null)
+            {
+                for (int r = 0; r < rows.Count; r++)
+                {
+                    var rowData = rows[r];
+                    if (rowData == null || rowData.Length == 0) continue;
+
+                    GameObject gGo = new GameObject($"Group_{r}_{rowData[0]}");
+                    gGo.transform.SetParent(transform, false);
+                    var bg = gGo.AddComponent<BlockGroup>();
+                    bg.colorType = rowData[0];
+                    bg.rowCount = 1;
+                    bg.laneCount = laneCount;
+                    bg.laneSpacing = laneSpacing;
+                    bg.rowSpacing = rowSpacing;
+
+                    for (int l = 0; l < rowData.Length; l++)
+                    {
+                        var block = blockSpawner != null ? blockSpawner(rowData[l], l) : null;
+                        if (block != null)
+                        {
+                            block.transform.SetParent(gGo.transform, false);
+                            block.SetGroupIndex(0, l);
+                        }
+                    }
+                }
+            }
+
+            Initialize();
+
+            if (customMergeStopT.HasValue && customMergeStopT.Value > 0f)
+            {
+                _mergeStopT = Mathf.Min(_mergeStopT, customMergeStopT.Value);
+            }
+        }
+
         public void Initialize()
         {
             _splineContainer = GetComponent<SplineContainer>();
+            if (_splineContainer == null) return;
             _splineLength = SplineUtility.CalculateLength(_splineContainer.Spline, transform.localToWorldMatrix);
             mergeT = data != null ? data.mergeT : mergeT;
 
@@ -185,7 +266,6 @@ namespace BlockShooter
             {
                 return cc.GetComponent<ConveyorTrackMeshBuilder>();
             }
-            // Fallback: search sibling or parent
             var lr = GetComponentInParent<LevelRoot>();
             if (lr != null && lr.conveyorController != null)
             {
@@ -196,11 +276,12 @@ namespace BlockShooter
 
         private void Update()
         {
-            if (!GameManager.Instance.IsPlaying || _rows.Count == 0) return;
+            if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
+            if (_rows.Count == 0) return;
 
-            float speed = ConveyorController.Instance.speed;
-            if (ConveyorController.Instance.IsFrozen) speed = 0f;
-            float delta = (speed / _splineLength) * Time.deltaTime;
+            float speed = ConveyorController.Instance != null ? ConveyorController.Instance.speed : 1.5f;
+            if (ConveyorController.Instance != null && ConveyorController.Instance.IsFrozen) speed = 0f;
+            float delta = _splineLength > 0f ? (speed / _splineLength) * Time.deltaTime : 0f;
 
             for (int i = 0; i < _rows.Count; i++)
             {
@@ -255,7 +336,7 @@ namespace BlockShooter
                 var firstRow = _rows[0];
                 if (firstRow.MergedGroup != null && firstRow.MergedGroup.IsEmpty)
                 {
-                    ConveyorController.Instance.RemoveGroup(firstRow.MergedGroup);
+                    ConveyorController.Instance?.RemoveGroup(firstRow.MergedGroup);
                 }
                 _rows.RemoveAt(0);
             }
@@ -323,25 +404,14 @@ namespace BlockShooter
                 float lookaheadT = (row.RowSpacing * 2.2f) / _splineLength;
                 if (row.CurrentT < _mergeStopT - lookaheadT - 0.001f) return;
 
+                if (ConveyorController.Instance == null) return;
                 float conveyorLength = ConveyorController.Instance.SplineWorldLength;
                 if (conveyorLength <= 0f) return;
 
-                // ── DETERMINISTIC SLOT PLACEMENT (World-Space) ─────────────────────────
-                // We search for free slots using WORLD-SPACE distance from the merge point,
-                // not T-value arithmetic. T-distances are unreliable on non-uniform splines
-                // (equal dT can mean very different world distances at different spline sections).
-                //
-                // _mainMergeWorldPos is the world position of mergeT on the main conveyor,
-                // pre-computed in Initialize() — no runtime spline eval needed on the branch side.
-                //
-                // Search radius = 1.5 * rowSpacing meters: wide enough to catch a slot passing
-                // through within the current frame's movement, narrow enough to never grab a
-                // slot that is far away on the belt.
                 float dT = row.RowSpacing / conveyorLength;
                 float searchRadiusMeters = row.RowSpacing * 1.5f;
                 float slotT = ConveyorController.Instance.FindClosestFreeSlotNearWorldPos(
                     _mainMergeWorldPos, searchRadiusMeters);
-
 
                 if (slotT < 0f)
                 {
@@ -377,7 +447,6 @@ namespace BlockShooter
             }
         }
 
-
         private ConveyorBlock3D GetBlockFromEntry(BranchRowEntry row, int lane)
         {
             foreach (var b in row.Blocks)
@@ -387,39 +456,8 @@ namespace BlockShooter
             return null;
         }
 
-        private Vector3 GetBlockBranchPosition(BranchRowEntry row, int lane)
-        {
-            if (_splineContainer == null) return Vector3.zero;
-            _splineContainer.Spline.Evaluate(row.CurrentT, out var pos, out var tangent, out var up);
-
-            Vector3 worldPos = transform.TransformPoint(pos);
-            Vector3 fwd = transform.TransformDirection((Vector3)tangent).normalized;
-            Vector3 upDir = transform.TransformDirection((Vector3)up).normalized;
-            if (upDir == Vector3.zero) upDir = Vector3.up;
-            Vector3 right = Vector3.Cross(upDir, fwd).normalized;
-            
-            float laneSpacing = _laneSpacing;
-            float xOff = (lane - 2f) * laneSpacing;
-            return worldPos + right * xOff;
-        }
-
-        private bool IsPositionInsideConveyor(Vector3 worldPos)
-        {
-            if (_mainMergeWorldPos == Vector3.zero) return false;
-
-            // Project worldPos onto the tangent line of the main track at the merge point.
-            // This is a 1000x faster O(1) mathematical line distance approximation that avoids expensive SplineUtility calls.
-            Vector3 relativePos = worldPos - _mainMergeWorldPos;
-            Vector3 perpendicular = relativePos - Vector3.Project(relativePos, _mainMergeWorldFwd);
-            float dist = perpendicular.magnitude;
-
-            return dist < _mainBeltRadius;
-        }
-
-
         private void MergeBlock(ref BranchRowEntry row, ConveyorBlock3D block, int lane)
         {
-            // MergedGroup is already created in CheckAndMergeBlocks
             Vector3 prevPosition = block.transform.position;
             Quaternion prevRotation = block.transform.rotation;
 
@@ -427,13 +465,16 @@ namespace BlockShooter
             block.SetGroupIndex(0, lane);
             row.MergedGroup.RegisterMergedBlock(block, lane);
 
-            if (row.SlotIndex >= 0)
+            if (row.SlotIndex >= 0 && ConveyorController.Instance != null)
             {
                 ConveyorController.Instance.RegisterBlockToSlot(row.SlotIndex, lane, block);
             }
 
             // Force update Conveyor positions so target position is updated
-            ConveyorController.Instance.ForceUpdateGroupPosition(row.MergedGroup);
+            if (ConveyorController.Instance != null)
+            {
+                ConveyorController.Instance.ForceUpdateGroupPosition(row.MergedGroup);
+            }
 
             // Setup jump start positions
             block.jumpStartPos = prevPosition;
@@ -465,12 +506,10 @@ namespace BlockShooter
                     DOTween.Kill(block.transform);
                     block.transform.DOPunchScale(new Vector3(0.12f, -0.15f, 0.12f), 0.22f, 8, 0.5f);
                 });
-
         }
 
         private float GetMainTrackLaneSpacing()
         {
-            // 1. Try to read from the branch path's own groups first (they have the correct level lane spacing)
             var branchGroups = GetComponentsInChildren<BlockGroup>(true);
             if (branchGroups != null && branchGroups.Length > 0)
             {
@@ -483,7 +522,6 @@ namespace BlockShooter
                 }
             }
 
-            // 2. Try to read from any active block groups on the main conveyor controller
             var cc = ConveyorController.Instance;
             if (cc != null)
             {
@@ -496,8 +534,9 @@ namespace BlockShooter
                     }
                 }
             }
-            return 0.18f; // Fallback to level default
+            return 0.18f;
         }
     }
-}
 
+    public class ConveyorBranchPath : BranchPath { }
+}

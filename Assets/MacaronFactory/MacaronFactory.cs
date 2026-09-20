@@ -12,7 +12,7 @@ using UnityEngine.UI;
 namespace BlockShooter
 {
     [RequireComponent(typeof(GameManager))]
-    public sealed class MacaronFactory : MonoBehaviour
+    public sealed partial class MacaronFactory : MonoBehaviour
     {
         public MacaronFeedbackPlayer feedback;
         [Header("GUI-SimpleRound")]
@@ -31,9 +31,9 @@ namespace BlockShooter
         public Sprite hudHomeIcon;
         public Sprite hudGreenButtonSprite;
         public Sprite hudGreenButtonPressedSprite;
-        [Header("Existing package conveyor")]
+        [Header("Existing cake block prefab source")]
         public LevelRoot conveyorSource;
-        [Header("Hand-authored levels (played in list order)")]
+        [Header("Tray-board templates (cycled; conveyor uses Soda Shippers stages)")]
         public MacaronLevel[] levels = System.Array.Empty<MacaronLevel>();
         private MacaronLevel _layout;
         [Header("Macaron Props prefabs")]
@@ -42,25 +42,19 @@ namespace BlockShooter
         [Tooltip("Cake shell materials by color. Empty uses GameManager's GameConfig color registry. Filling keeps its prefab material.")]
         public ColorRegistryConfig colorRegistry;
         public ColorRegistryConfig ColorRegistry => colorRegistry != null ? colorRegistry : GetComponent<GameManager>().config?.colorRegistry;
-        [Tooltip("Macaron size on the conveyor. Cakes shrink to their authored Pocket size when collected.")]
+        [Tooltip("Maximum macaron size on the conveyor, limited to fit the source row spacing. Cakes use their authored Pocket size when collected.")]
         [Min(.1f)] public float conveyorMacaronScale = 1.6f;
-        public int maxRowWidth => _layout.columns;
-        private float rowSpacing => _layout.rowSpacing;
-        public float laneSpacing => Level.laneSpacing;
-        [Header("Conveyor flow")]
-        [Tooltip("World units per second used to move rows toward the endpoint of the conveyor.")]
-        [Min(.1f)] public float conveyorSpeed = 1.2f;
-        private float exitZoneLength => _layout.exitZoneLength;
-        public float stopBeforeExitDistance => _layout.stopBeforeExit;
+        public int maxRowWidth => SodaConveyor.StageGroupSpec.LaneCount;
+        public float laneSpacing => SodaConveyor.StageLayout.LaneSpacing;
         [Header("Macaron exit")]
         [Tooltip("Flight time in seconds. Set to 0 to use Macaron Exit Speed instead.")]
-        [Min(0)] public float macaronExitTime = .35f;
+        [Min(0)] public float macaronExitTime = .18f;
         [Tooltip("Flight progress over normalized time (0 to 1). Use endpoints (0,0) and (1,1).")]
         public AnimationCurve macaronExitCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [Tooltip("Jump height above the flight path, in world units.")]
         [Min(0)] public float macaronExitJumpHeight = .7f;
         [Tooltip("Delay between cakes starting their jump within each pickup row. Jumps may overlap.")]
-        [Min(0)] public float macaronExitStagger = .08f;
+        [Min(0)] public float macaronExitStagger = .035f;
         [Tooltip("World units per second when one macaron leaves the conveyor and flies into its tray.")]
         [Min(.1f)] public float macaronExitSpeed = 4f;
         [Tooltip("Peak size relative to the macaron's size when it leaves the belt.")]
@@ -95,11 +89,12 @@ namespace BlockShooter
         public bool IsBusy => _transfers > 0 || _slots.Any(t => t != null && (t.Moving || t.Shipping));
         public Material PaperMaterial { get; private set; }
         public Material ShadowMaterial { get; private set; }
-        public LevelRoot Level { get; private set; }
-        public IReadOnlyList<ConveyorBlock3D[]> Rows => _conveyorFlow.Rows;
-        public IReadOnlyList<ConveyorBlock3D> PickupBlocks => _conveyorFlow.PickupBlocks;
-        public MacaronConveyorFlow ConveyorFlow => _conveyorFlow;
-        private MacaronConveyorFlow _conveyorFlow;
+        public IReadOnlyList<ConveyorBlock3D[]> Rows => _rows;
+        private List<ConveyorBlock3D> _pickupOverride;
+        public void SetPickupOverride(List<ConveyorBlock3D> overrideList) => _pickupOverride = overrideList;
+
+        public IReadOnlyList<ConveyorBlock3D> PickupBlocks => _pickupOverride ?? GetSourcePickupBlocks();
+        private readonly List<ConveyorBlock3D[]> _rows = new();
         private readonly List<MacaronTray> _trays = new();
         private readonly MacaronTray[] _slots = new MacaronTray[6];
         private readonly List<Material> _materials = new();
@@ -168,7 +163,7 @@ namespace BlockShooter
         {
             Stage = _requestedStage > 0 ? _requestedStage : stageOverride > 0 ? stageOverride : Mathf.Max(1, PlayerPrefs.GetInt("Macaron.Stage", 1));
             _requestedStage = 0;
-            if (conveyorSource == null || conveyorSource.conveyorController == null || GameManager.Instance.config == null ||
+            if (conveyorSource == null || conveyorSource.conveyorBlockPrefab == null || GameManager.Instance.config == null ||
                 levels == null || levels.Length == 0 || levels.Any(level => level == null) ||
                 macaronPrefabs == null || macaronPrefabs.Length != Palette.Length || macaronPrefabs.Any(p => p == null))
             {
@@ -179,20 +174,19 @@ namespace BlockShooter
             PaperMaterial = Material("Vanilla paper", new Color(1f, .9f, .75f));
             ShadowMaterial = Material("Pocket shadow", new Color(.56f, .4f, .38f));
             var prefab = levels[(Stage - 1) % levels.Length];
-            prefab.ValidateLayout();
             _layout = Instantiate(prefab, transform);
             _layout.name = prefab.name;
-            _layout.AlignExitToWaitingSlots();
             _layout.MoveRemainingBadgeToTraySide();
             MacaronLevelVisualPolish.Apply(_layout);
             _remainingBadge = _layout.transform.Find("Remaining badge");
-            BuildTrays();
             BuildConveyor();
+            BuildTrays();
             if (_layout != null)
             {
                 var camera = Camera.main;
                 var frame = camera.GetComponent<MacaronCameraFrame>() ?? camera.gameObject.AddComponent<MacaronCameraFrame>();
-                frame.FrameLevel(_layout);
+                frame.Frame(SourceCameraBounds(),
+                    _layout.cameraTilt, _layout.cameraFieldOfView, _layout.cameraPadding);
                 camera.backgroundColor = new Color(.88f, .85f, .78f);
             }
             BuildHud();
@@ -213,133 +207,55 @@ namespace BlockShooter
             for (int i = 0; i < 6; i++) _slotPads[i] = _layout.waitingSlots[i].GetComponent<Renderer>();
         }
 
-        private void BuildConveyor()
+        private void SetupMacaronVisual(ConveyorBlock3D block, BlockColorType color, float cakeScale)
         {
-            Level = Instantiate(conveyorSource, transform);
-            Level.name = "Package conveyor";
-            foreach (Transform child in Level.transform)
-                if (child.name != "ConveyorSystem") child.gameObject.SetActive(false);
-            Level.cells.Clear();
-            Level.branches.Clear();
-            Level.groups.Clear();
-            foreach (var branch in Level.GetComponentsInChildren<BranchPath>(true)) branch.gameObject.SetActive(false);
+            block.Initialize(color, FlavorColor(color));
+            foreach (var renderer in block.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
+            var prefab = MacaronPrefab(color);
+            var visual = Instantiate(prefab, block.transform).transform;
+            MacaronLevelVisualPolish.MarkForOutline(visual);
+            ApplyMacaronColor(visual.GetComponent<Renderer>(), color);
+            visual.name = "Macaron";
+            block.transform.localScale = Vector3.one;
+            visual.localScale = Vector3.one * cakeScale;
+            visual.localPosition = new Vector3(0, -prefab.GetComponent<Renderer>().localBounds.min.y * cakeScale, 0);
+            foreach (var collider in visual.GetComponentsInChildren<Collider>()) collider.enabled = false;
+            foreach (var collider in block.GetComponents<Collider>()) collider.enabled = false;
+        }
 
-            var colors = _layout.BuildMacaronOrder();
-            var payload = new List<BlockColorType[]>();
-            for (int offset = 0; offset < colors.Count;)
-            {
-                int count = Mathf.Min(maxRowWidth, colors.Count - offset);
-                payload.Add(colors.GetRange(offset, count).ToArray());
-                offset += count;
-            }
-            // Package progress increases along the spline: reverse the spawn list so row 0 leads.
-            for (int i = payload.Count - 1; i >= 0; i--)
-                Level.groups.Add(new LevelConveyorGroup { color = payload[i][0], rowCount = 1, laneCount = payload[i].Length });
-            float cakeScale = Mathf.Max(.1f, conveyorMacaronScale);
-            float cakeDiameter = cakeScale * macaronPrefabs.Max(prefab =>
-            {
-                var bounds = prefab.GetComponent<Renderer>().localBounds;
-                return 2 * Mathf.Max(Mathf.Abs(bounds.center.x) + bounds.extents.x,
-                    Mathf.Abs(bounds.center.z) + bounds.extents.z);
-            });
-            Level.laneSpacing = Mathf.Max(_layout.laneSpacing, cakeDiameter + .015f);
-            Level.rowSpacing = rowSpacing;
-            var conveyor = Level.conveyorController;
-            conveyor.automaticMotion = false;
-            if (_layout != null)
-            {
-                conveyor.transform.SetPositionAndRotation(_layout.conveyorPath.transform.position, _layout.conveyorPath.transform.rotation);
-                conveyor.transform.localScale = _layout.conveyorPath.transform.lossyScale;
-                conveyor.GetComponent<SplineContainer>().Spline = new Spline(_layout.conveyorPath.Spline);
-                conveyor.loop = false;
-                var preview = _layout.conveyorPath.GetComponent<Renderer>();
-                if (preview != null)
-                {
-                    conveyor.GetComponent<Renderer>().sharedMaterials = preview.sharedMaterials;
-                    preview.enabled = false;
-                }
-            }
-            var belt = conveyor.GetComponent<ConveyorTrackMeshBuilder>();
-            if (_layout != null) belt.resolution = _layout.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>().resolution;
-            belt.beltHalfWidth = laneSpacing * (maxRowWidth - 1) * .5f + Mathf.Max(.16f, cakeDiameter * .5f + .02f);
-            belt.railHeight = .18f;
-            belt.wallAboveBelt = .045f;
-            belt.openZoneEnabled = false;
-            if (_layout.conveyorPath.Spline.Closed)
-            {
-                var authored = _layout.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
-                belt.closeBottom = authored.closeBottom;
-                authored.beltHalfWidth = belt.beltHalfWidth;
-                foreach (var branch in _layout.feederBranches)
-                {
-                    branch.Branch.beltHalfWidth = belt.beltHalfWidth;
-                    branch.SyncJunction();
-                }
-                belt.openings = new List<ConveyorOpening>(authored.openings);
-            }
-            belt.BuildMesh();
-            Level.SpawnBlocksRuntime();
-            conveyor.Initialize();
-            conveyor.speed = conveyorSpeed;
-            var rows = new List<ConveyorBlock3D[]>();
-            var rowGroups = new List<BlockGroup>();
-            var groups = conveyor.GetComponentsInChildren<BlockGroup>(true).Reverse().ToArray();
-            for (int row = 0; row < groups.Length; row++)
-            {
-                var blocks = new ConveyorBlock3D[payload[row].Length];
-                for (int lane = 0; lane < blocks.Length; lane++)
-                {
-                    var block = groups[row].GetBlock(0, lane);
-                    blocks[lane] = block;
-                    var color = payload[row][lane];
-                    block.Initialize(color, FlavorColor(color));
-                    foreach (var renderer in block.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
-                    var prefab = MacaronPrefab(color);
-                    var visual = Instantiate(prefab, block.transform).transform;
-                    MacaronLevelVisualPolish.MarkForOutline(visual);
-                    ApplyMacaronColor(visual.GetComponent<Renderer>(), color);
-                    visual.name = "Macaron";
-                    Vector3 scale = block.transform.lossyScale;
-                    visual.localScale = new Vector3(cakeScale / scale.x, cakeScale / scale.y, cakeScale / scale.z);
-                    visual.localPosition = new Vector3(0, -prefab.GetComponent<Renderer>().localBounds.min.y * cakeScale / scale.y, 0);
-                    foreach (var collider in visual.GetComponentsInChildren<Collider>()) collider.enabled = false;
-                    foreach (var collider in block.GetComponents<Collider>()) collider.enabled = false;
-                }
-                rows.Add(blocks);
-                rowGroups.Add(groups[row]);
-            }
-            float stopT = Mathf.Clamp01(1 - stopBeforeExitDistance / conveyor.SplineWorldLength);
-            float initialFrontT = stopT * .5f;
-            _conveyorFlow = new MacaronConveyorFlow(conveyor, rows, rowGroups, rowSpacing,
-                _layout.conveyorPath.Spline.Closed ? 0 : initialFrontT, laneSpacing, maxRowWidth, cakeDiameter,
-                _layout.conveyorPath.Spline.Closed ? _layout.feederBranches : null,
-                _layout.loopSpacingMultiplier, _layout.feederSpacingMultiplier, _layout.independentLanePacking);
-            _remaining = colors.Count;
+        private ConveyorBlock3D SpawnMacaronBlock(BlockColorType color, Transform parent, float cakeScale)
+        {
+            var go = Instantiate(conveyorSource.conveyorBlockPrefab, parent);
+            go.name = $"MacaronBlock_{color}";
+            var block = go.GetComponent<ConveyorBlock3D>();
+            if (block == null) block = go.AddComponent<ConveyorBlock3D>();
+            SetupMacaronVisual(block, color, cakeScale);
+            return block;
         }
 
         private void Update()
         {
             if (!_ready || !GameManager.Instance.IsPlaying) return;
             HandleClickParticle();
-            var conveyor = Level.conveyorController;
-            if (conveyor.IsFrozen) return;
-            _conveyorFlow.Tick(conveyorSpeed * _speedMultiplier, exitZoneLength, stopBeforeExitDistance);
-            if (_layout.collectionGate != null)
+            Conveyor.TickFinishBoost(!_trays.Any(tray => tray.OnTable));
+            Conveyor.Advance(Time.deltaTime * _speedMultiplier);
+            var candidates = PickupBlocks;
+            var launchCounts = new Dictionary<MacaronTray, int>();
+
+            foreach (var block in candidates)
             {
-                bool receiving = _transfers > 0 || PickupBlocks.Any(block =>
-                    _slots.Any(tray => tray != null && tray.CanReceive && tray.Color == block.ColorType));
-                if (receiving) _layout.collectionGate.Open(); else _layout.collectionGate.Close();
-            }
-            foreach (var row in PickupBlocks.GroupBy(block => block.transform.parent))
-            {
-                if (_layout.collectionGate != null && !_layout.collectionGate.IsOpen) break;
-                int launchIndex = 0;
-                foreach (var block in row.OrderBy(DistanceToReceivingTray).ToArray())
+                if (block == null || block.IsDestroyed || block.IsTargeted) continue;
+
+                foreach (var tray in _slots)
                 {
-                    foreach (var tray in _slots)
+                    if (tray == null || tray.Moving || tray.Shipping || tray.Color != block.ColorType || !tray.CanReceive) continue;
+
+                    if (tray.TryReserve())
                     {
-                        if (tray == null || tray.Moving || tray.Shipping || tray.Color != block.ColorType || !tray.TryReserve()) continue;
-                        StartCoroutine(Collect(block, tray, launchIndex++ * Mathf.Max(0, macaronExitStagger)));
+                        int pocket = tray.Filled + tray.Reserved - 1;
+                        launchCounts.TryGetValue(tray, out int count);
+                        launchCounts[tray] = count + 1;
+                        StartCoroutine(Collect(block, tray, pocket, count * macaronExitStagger));
                         break;
                     }
                 }
@@ -429,9 +345,8 @@ namespace BlockShooter
                 : float.PositiveInfinity;
         }
 
-        private IEnumerator Collect(ConveyorBlock3D block, MacaronTray tray, float delay)
+        private IEnumerator Collect(ConveyorBlock3D block, MacaronTray tray, int pocket, float delay)
         {
-            int pocket = tray.Filled + tray.Reserved - 1;
             _transfers++;
             block.SetTargeted(true);
             if (delay > 0) yield return new WaitForSeconds(delay);
@@ -516,7 +431,6 @@ namespace BlockShooter
             }
         }
 
-        private System.Predicate<ConveyorBlock3D> _canReceiveForDeadlock;
         private bool CanReceiveForDeadlock(ConveyorBlock3D block)
         {
             for (int i = 0; i < OpenSlots; i++)
@@ -524,12 +438,28 @@ namespace BlockShooter
             return false;
         }
 
+        private System.Func<BlockColorType, bool> _canReceiveColorForDeadlock;
+        private bool CanReceiveColorForDeadlock(BlockColorType color)
+        {
+            for (int i = 0; i < OpenSlots; i++)
+                if (_slots[i] != null && _slots[i].Color == color && _slots[i].CanReceive) return true;
+            return false;
+        }
+
         public bool IsDeadlocked()
         {
             if (!_ready || !GameManager.Instance.IsPlaying || IsBusy || _remaining == 0) return false;
             for (int i = 0; i < OpenSlots; i++) if (_slots[i] == null) return false;
-            if (_conveyorFlow.IsLoop) return !_conveyorFlow.HasReachableMatch(_canReceiveForDeadlock ??= CanReceiveForDeadlock);
-            // Only cakes in the leading row at the conveyor endpoint count.
+            if (_pickupOverride == null)
+            {
+                if (Conveyor != null)
+                {
+                    if (Conveyor.Items.Any(block => block != null && !block.IsDestroyed && CanReceiveForDeadlock(block))) return false;
+                    if (Conveyor.AnyFreeSlot() && Conveyor.Branches.Any(branch => branch.HasMatchingColor(_canReceiveColorForDeadlock ??= CanReceiveColorForDeadlock))) return false;
+                    return true;
+                }
+            }
+            // Explicit pickup overrides are also used by the manual reservation check.
             var incoming = PickupBlocks;
             bool hasIncoming = false;
             foreach (var block in incoming)
@@ -628,7 +558,8 @@ namespace BlockShooter
         public string FlavorName(BlockColorType color) => color switch {
             BlockColorType.Red => "BERRY", BlockColorType.Green => "PISTACHIO",
             BlockColorType.Yellow => "LEMON", BlockColorType.Blue => "BLUEBERRY",
-            BlockColorType.Purple => "LAVENDER", _ => "ROSE"
+            BlockColorType.Purple => "LAVENDER", BlockColorType.Custom1 => "PINK",
+            BlockColorType.Custom2 => "GRAY", BlockColorType.Custom3 => "LIGHT BLUE", _ => "ROSE"
         };
 
         public Color FlavorColor(BlockColorType color)
@@ -709,7 +640,7 @@ namespace BlockShooter
             return part;
         }
 
-        public GameObject MacaronPrefab(BlockColorType color) => macaronPrefabs[System.Array.IndexOf(Palette, color)];
+        public GameObject MacaronPrefab(BlockColorType color) => macaronPrefabs[Mathf.Max(0, System.Array.IndexOf(Palette, color))];
 
         public TextMeshPro WorldText(string label, Transform parent, Vector3 position, string text, float size)
         {
@@ -1163,6 +1094,7 @@ namespace BlockShooter
 
         private void OnDestroy()
         {
+            if (_sourceColors != null) Destroy(_sourceColors);
             StopAllCoroutines();
             Time.timeScale = 1;
             foreach (var material in _materials) if (material != null) Destroy(material);

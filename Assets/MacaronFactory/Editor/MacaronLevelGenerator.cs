@@ -50,6 +50,8 @@ namespace BlockShooter.Editor
         [Tooltip("Keep matching macarons in full-row color blocks on the conveyor.")]
         public bool clusterColors = true;
         [Range(6, 24)] public int colorClusterSize = 12;
+        [Range(1, 10)] public int minColorRunRows = 1;
+        [Range(1, 10)] public int maxColorRunRows = 10;
         [Tooltip("Maximum colors in each generated supply window. Keep it below the four starting tray slots.")]
         [Range(1, 3)] public int activeColorLimit = 3;
         [Tooltip("Assign tray colors in the same top-to-bottom, front-to-back order used by the conveyor supply.")]
@@ -229,6 +231,8 @@ namespace BlockShooter.Editor
                 level.columns = Mathf.Clamp(config.conveyorColumns, 1, 5);
                 level.clusterColors = config.clusterColors;
                 level.colorClusterSize = config.colorClusterSize;
+                level.minColorRunRows = config.minColorRunRows;
+                level.maxColorRunRows = config.maxColorRunRows;
                 level.activeColorLimit = config.activeColorLimit;
                 level.loopSpacingMultiplier = config.loopSpacingMultiplier;
                 level.independentLanePacking = config.independentLanePacking;

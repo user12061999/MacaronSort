@@ -90,6 +90,10 @@ namespace BlockShooter
         public bool clusterColors = true;
         [Tooltip("Target pieces per color cluster. It rounds up to full conveyor rows using Columns.")]
         [Range(6, 24)] public int colorClusterSize = 12;
+        [Tooltip("Shortest consecutive run of one macaron color, measured in conveyor rows.")]
+        [Range(1, 10)] public int minColorRunRows = 1;
+        [Tooltip("Longest consecutive run of one macaron color, measured in conveyor rows.")]
+        [Range(1, 10)] public int maxColorRunRows = 10;
         [Tooltip("Maximum different colors introduced together. Three keeps one of the four starting tray slots free.")]
         [Range(1, 3)] public int activeColorLimit = 3;
         [Min(.22f)] public float laneSpacing = .25f;
@@ -299,7 +303,8 @@ namespace BlockShooter
             {
                 var defaultSupplyOrder = trays.OrderByDescending(tray => tray.stackLayer)
                     .SelectMany(tray => Enumerable.Repeat(tray.levelColor, tray.Capacity)).ToList();
-                return clusterColors ? ClusterColors(defaultSupplyOrder, colorClusterSize, columns, activeColorLimit) : defaultSupplyOrder;
+                return clusterColors ? ClusterColors(defaultSupplyOrder, colorClusterSize, columns, activeColorLimit,
+                    minColorRunRows, maxColorRunRows) : defaultSupplyOrder;
             }
             if (macaronOrder == null || macaronOrder.Length == 0)
                 throw new InvalidOperationException($"{name}: custom Macaron Order is empty.");
@@ -324,18 +329,22 @@ namespace BlockShooter
             for (int color = 1; color <= 6; color++)
                 if (supply[color] != capacity[color])
                     throw new InvalidOperationException($"{name}: {(BlockColorType)color} has {supply[color]} cakes but {capacity[color]} tray pockets.");
-            var supplyOrder = macaronOrder.SelectMany(batch => Enumerable.Repeat(batch.color, batch.count)).ToList();
-            return clusterColors ? ClusterColors(supplyOrder, colorClusterSize, columns, activeColorLimit) : supplyOrder;
+            return macaronOrder.SelectMany(batch => Enumerable.Repeat(batch.color, batch.count)).ToList();
         }
 
-        public static List<BlockColorType> ClusterColors(List<BlockColorType> supply, int size, int columns, int activeColors)
+        public static List<BlockColorType> ClusterColors(List<BlockColorType> supply, int size, int columns, int activeColors,
+            int minRows = 1, int maxRows = 10)
         {
             int rowWidth = Mathf.Max(1, columns);
-            int clusterSize = Mathf.CeilToInt(Mathf.Clamp(size, 6, 24) / (float)rowWidth) * rowWidth;
+            int minimum = Mathf.Clamp(Mathf.Min(minRows, maxRows), 1, 10);
+            int maximum = Mathf.Clamp(Mathf.Max(minRows, maxRows), minimum, 10);
             var remaining = supply.GroupBy(color => color).ToDictionary(group => group.Key, group => group.Count());
             var colors = supply.Distinct().ToArray();
             var result = new List<BlockColorType>(supply.Count);
             int paletteSize = Mathf.Clamp(activeColors, 1, 3);
+            int seed = size;
+            foreach (var color in supply) seed = seed * 31 + (int)color;
+            var random = new System.Random(seed);
             for (int start = 0; start < colors.Length; start += paletteSize)
             {
                 int end = Mathf.Min(start + paletteSize, colors.Length);
@@ -343,7 +352,7 @@ namespace BlockShooter
                     for (int index = start; index < end; index++)
                     {
                         var color = colors[index];
-                        int take = Mathf.Min(clusterSize, remaining[color]);
+                        int take = Mathf.Min(random.Next(minimum, maximum + 1) * rowWidth, remaining[color]);
                         for (int i = 0; i < take; i++) result.Add(color);
                         remaining[color] -= take;
                     }

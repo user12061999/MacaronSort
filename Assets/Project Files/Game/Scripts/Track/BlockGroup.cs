@@ -1,44 +1,45 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace BlockShooter
 {
     /// <summary>
-    /// A group of pre-placed ConveyorBlock3D children arranged in a row × lane grid.
-    /// The Level Editor tool creates the child hierarchy; this script registers them at runtime.
+    /// A group of pre-placed ConveyorBlock3D children arranged in a row × lane grid,
+    /// moving together as one unit along the conveyor.
+    /// Cloned & streamlined from Soda Shippers (SodaGroup.cs).
     /// </summary>
     public class BlockGroup : MonoBehaviour
     {
         [Header("Config")]
         public BlockColorType colorType;
-        public int   rowCount    = 20;
-        public int   laneCount   = 5;
+        public int rowCount = 20;
+        public int laneCount = 5;
         public float laneSpacing = 0.22f;
-        public float rowSpacing  = 0.22f;
+        public float rowSpacing = 0.22f;
 
-        public int   RowCount    => rowCount;
-        public int   LaneCount   => laneCount;
+        public int RowCount => rowCount;
+        public int LaneCount => laneCount;
         public float LaneSpacing => laneSpacing;
+        public float RowSpacing => rowSpacing;
         public float SplineLength => rowCount * rowSpacing;
 
         private ConveyorBlock3D[,] _blocks;
         private int _aliveCount;
 
-        public int  AliveCount => _aliveCount;
-        public bool IsEmpty    => _aliveCount <= 0;
+        public int AliveCount => _aliveCount;
+        public bool IsEmpty => _aliveCount <= 0;
 
         public event Action<BlockGroup> OnGroupCleared;
 
-        /// <summary>
-        /// Scans ConveyorBlock3D children (using their serialized RowIndex/LaneIndex),
-        /// registers them, and applies color. Called by ConveyorController.Initialize().
-        /// </summary>
         public void Initialize()
         {
             _blocks = new ConveyorBlock3D[rowCount, laneCount];
             _aliveCount = 0;
 
-            Color c = GameManager.Instance.config.GetColor(colorType);
+            Color c = GameManager.Instance != null && GameManager.Instance.config != null
+                ? GameManager.Instance.config.GetColor(colorType)
+                : Color.white;
 
             foreach (var block in GetComponentsInChildren<ConveyorBlock3D>(true))
             {
@@ -79,6 +80,15 @@ namespace BlockShooter
                 OnGroupCleared?.Invoke(this);
         }
 
+        public IEnumerable<ConveyorBlock3D> AllBlocks()
+        {
+            if (_blocks == null) yield break;
+            for (int r = 0; r < rowCount; r++)
+                for (int l = 0; l < laneCount; l++)
+                    if (_blocks[r, l] != null)
+                        yield return _blocks[r, l];
+        }
+
         public void SetVisible(bool visible)
         {
             if (_blocks == null) return;
@@ -97,4 +107,6 @@ namespace BlockShooter
             }
         }
     }
+
+    public class ConveyorGroup : BlockGroup { }
 }
