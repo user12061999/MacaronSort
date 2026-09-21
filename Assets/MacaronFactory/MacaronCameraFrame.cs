@@ -17,6 +17,56 @@ namespace BlockShooter
         private MacaronLevel _level;
         private readonly List<ConveyorTrackMeshBuilder> _extensions = new();
 
+        public void FrameFactoryLayout(MacaronLevel level, System.Func<IEnumerable<Bounds>> sceneBounds)
+        {
+            level.SpreadTraysOnBoard();
+            var camera = GetComponent<Camera>();
+            var waiting = level.waitingSlots.SelectMany(slot => slot.GetComponentsInChildren<Renderer>())
+                .Select(renderer => renderer.bounds).ToList();
+            var bench = level.transform.Find("Waiting bench rim");
+            if (bench != null) waiting.AddRange(bench.GetComponentsInChildren<Renderer>().Select(renderer => renderer.bounds));
+            var trays = level.trayRoot.GetComponentsInChildren<Renderer>(true);
+            var boards = new[] { level.transform.Find("Tray board rim"), level.transform.Find("Tray board inset") };
+            // ponytail: bounded startup fitting for authored boards; use a layout solver for freely moving cameras.
+            for (int pass = 0; pass < 16; pass++)
+            {
+                Frame(sceneBounds(), level.cameraTilt, level.cameraFieldOfView, level.cameraPadding);
+                var direction = -Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up).normalized;
+                float shift = MacaronCameraFrame.TrayClearanceShift(camera, trays.Select(renderer => renderer.bounds),
+                    waiting, direction, level.waitingSlotScreenGap);
+                if (shift <= .001f) break;
+                var offset = direction * (shift + .02f);
+                level.trayRoot.position += offset;
+                foreach (var board in boards)
+                    if (board != null && !board.IsChildOf(level.trayRoot)) board.position += offset;
+            }
+            Frame(sceneBounds(), level.cameraTilt, level.cameraFieldOfView, level.cameraPadding);
+            camera.backgroundColor = new Color(.88f, .85f, .78f);
+        }
+
+        public static float TrayClearanceShift(Camera camera, IEnumerable<Bounds> trays,
+            IEnumerable<Bounds> slots, Vector3 direction, float gap)
+        {
+            float bottom = float.PositiveInfinity;
+            foreach (var box in slots)
+                for (int x = -1; x <= 1; x += 2)
+                    for (int y = -1; y <= 1; y += 2)
+                        for (int z = -1; z <= 1; z += 2)
+                            bottom = Mathf.Min(bottom, camera.WorldToViewportPoint(box.center +
+                                Vector3.Scale(box.extents, new Vector3(x, y, z))).y);
+            if (!float.IsFinite(bottom)) return 0;
+            float slope = (2 * (bottom - gap) - 1) * Mathf.Tan(camera.fieldOfView * .5f * Mathf.Deg2Rad);
+            var normal = camera.transform.up - slope * camera.transform.forward;
+            float rate = -Vector3.Dot(normal, direction);
+            if (rate <= .0001f) return 0;
+            var absolute = new Vector3(Mathf.Abs(normal.x), Mathf.Abs(normal.y), Mathf.Abs(normal.z));
+            float shift = 0;
+            foreach (var box in trays)
+                shift = Mathf.Max(shift, (Vector3.Dot(normal, box.center - camera.transform.position) +
+                    Vector3.Dot(absolute, box.extents)) / rate);
+            return shift;
+        }
+
         public static Bounds[] CoreBounds(MacaronLevel level)
         {
             return level.GetComponentsInChildren<Renderer>().Where(r =>

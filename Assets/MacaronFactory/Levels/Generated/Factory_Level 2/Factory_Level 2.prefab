@@ -17283,6 +17283,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d50afeb2cb348834a8213f590643ca57, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  conveyorShape: 2
+  waitingSlotScreenGap: 0.015
+  overrideCakeSupply: 1
+  colorCount: 6
+  cakeCount: 600
   useCustomMacaronOrder: 1
   macaronOrder:
   - color: 2
@@ -17402,6 +17407,8 @@ MonoBehaviour:
   columns: 4
   clusterColors: 1
   colorClusterSize: 24
+  minColorRunRows: 1
+  maxColorRunRows: 10
   activeColorLimit: 3
   laneSpacing: 0.22
   rowSpacing: 0.24
@@ -17409,7 +17416,7 @@ MonoBehaviour:
   exitZoneLength: 0.65
   cameraTilt: 72
   cameraFieldOfView: 35
-  cameraPadding: {x: 0.015, y: 0.015, z: 0.12, w: 0.065}
+  cameraPadding: {x: 0.015, y: 0.015, z: 0.05, w: 0.065}
   conveyorTrack: {fileID: 6412112215951364706}
   gateMountRoot: {fileID: 0}
   gateMounts: []
@@ -20409,13 +20416,15 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 1
   resolution: 512
   vTiling: 8
+  trimBranchEnd: 0
+  mainTrackSpline: {fileID: 0}
   sweepFrom: 0
   sweepTo: 1
-  capSweepEnds: 1
+  closeBottom: 1
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
   openings:
   - label: Collection gate
     enabled: 1
@@ -20427,6 +20436,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 1, g: 0.5, b: 0.12, a: 1}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   - label: Junction:Feeder 01:-6043792
     enabled: 1
     side: 1
@@ -20437,6 +20449,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 0.2, g: 0.85, b: 1, a: 1}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   - label: Junction:Feeder 02:-6043806
     enabled: 1
     side: 1
@@ -20447,14 +20462,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 0.2, g: 0.85, b: 1, a: 1}
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
-  trimBranchEnd: 0
-  mainTrackSpline: {fileID: 0}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!1 &6055823742513880581
@@ -24097,22 +24107,16 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 0
   resolution: 60
   vTiling: 8
-  sweepFrom: 0
-  sweepTo: 0.89919096
-  capSweepEnds: 1
-  openings: []
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
   trimBranchEnd: 0
   mainTrackSpline: {fileID: 0}
+  sweepFrom: 0
+  sweepTo: 0.89919096
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
+  openings: []
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!114 &24571863223515586
@@ -28179,22 +28183,16 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 0
   resolution: 60
   vTiling: 8
-  sweepFrom: 0
-  sweepTo: 0.8991909
-  capSweepEnds: 1
-  openings: []
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
   trimBranchEnd: 0
   mainTrackSpline: {fileID: 0}
+  sweepFrom: 0
+  sweepTo: 0.8991909
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
+  openings: []
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!114 &6473531314281693121

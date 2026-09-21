@@ -168,39 +168,16 @@ Preview là bản bố cục tĩnh ở Edit Mode, không chạy gameplay/animati
 
 Đã sửa khe tại junction: branch trim theo `beltHalfWidth` thay vì `RimOffset`, vì opening đã bỏ cả bề dày thành. Nhánh nay kéo tới mép mặt belt, không còn dừng ở mép ngoài thành. Hai mesh nhánh và mesh vòng của Level 4 đã được rebuild/lưu lại.
 
-## Sinh level từ cấu hình Editor
+## Cấu hình bánh theo level
 
-Menu `Tools > Macaron Factory > Open Level Generator` mở Inspector của level mẫu. Hoặc chọn MacaronLevel và mở mục `Generate new level` ở cuối Inspector.
+Đã bỏ Editor Generate / Save level. Các prefab level đã lưu vẫn giữ nguyên.
+Chọn prefab trong danh sách `MacaronFactory > Levels`, xem `Level cake configuration` ở đầu Inspector:
 
-- `Level Name`, `Seed`: tên output và seed lặp lại kết quả kích thước/hướng khay, thứ tự trộn supply.
-- `Tray Count`: 1–48 khay; `Color Count`: 1–6 màu; `Large Tray Percent`: xác suất dùng khay 2×4, còn lại 1×4.
-- `Table Columns`, `Stack Layers`: bố trí ô khay và số lớp; `Mix Vertical Trays`: trộn khay dọc/ngang; `Mystery Under Stacks`: ẩn màu khay có lớp trên.
-- `Tray Scale`, `Tray Gap`: scale và khe giữa các ô. Khay được ghép theo footprint collider thực tế, lấp các khoảng trống còn vừa trên mỗi tầng. Các tầng dùng bố cục riêng, không phải cột khay thẳng hàng.
-- `Conveyor Columns`, `Loop Spacing Multiplier`, `Feeder Spacing Multiplier`: số cột bánh và khoảng cách. Camera và Waiting Slots lấy từ template; hình băng chuyền chọn chữ nhật hoặc tam giác.
-- `Shuffle Supply`: mặc định tắt, supply đi theo khay ở tầng trên trước. Bật sẽ xáo trộn cả batch khay. Tổng bánh mỗi màu luôn khớp tổng Pocket tương ứng; không có bộ giải chứng minh level luôn thắng được.
-- `Add To Factory`: thêm asset mới vào cuối Levels của scene hiện tại. `Select As Starting Stage`: chọn Stage Override của level mới nếu bật Add To Factory.
-
-Bấm `Generate, sau đó Save`. Output nằm trong `Assets/MacaronFactory/Levels/Generated/<tên>/`, gồm prefab và mesh riêng; tên trùng tự thêm hậu tố. Template không bị ghi đè. Editor tự chọn asset mới để xem/chỉnh tiếp với Auto Scene / Game preview. Cấu hình công cụ lưu riêng ở UserSettings/MacaronLevelGenerator.asset. Không tự sinh lại khi kéo thanh config; cần bấm nút Generate để tạo kết quả mới.
-
-Mặc định: 18 khay, 6 màu, 60% khay lớn, bàn 3 cột, 1 lớp, khe 0,025, băng chuyền 2 cột. Số bánh thực tế được báo sau khi sinh. Chưa chạy generator như một bài test hoặc chạy Play Mode.
-
-### Cấu hình băng chuyền rút gọn
-
-- `Conveyor Shape`: chỉ còn Rounded Rectangle (chữ nhật bo góc) và Triangle (tam giác bo góc, cạnh đáy hướng về Waiting Slots).
-- `Feeders`: số phần tử là số nhánh; đặt Size = 0 để không có feeder.
-- Mỗi feeder chỉ còn `Position` (0–1 dọc vòng, 0/1 ở giữa đáy) và `Length` (chiều dài nhánh). Nhánh luôn nối từ phía ngoài, vuông góc với đường tại vị trí chọn.
-- Bỏ random hình/kích thước/vị trí, góc tiếp cận, chọn phía, cầu vượt, số vòng xoắn và các hình khác. Seed vẫn dùng cho khay/supply.
-- Kích thước vòng và bán kính cua tự tính theo độ rộng belt; khi không có feeder, vòng tự mở rộng để chứa đủ supply. Các config khay, bánh, khoảng cách và hai nút Generate / Save vẫn giữ nguyên.
-- Số feeder, Position và Length đã lưu được giữ lại. Shape cũ không còn hỗ trợ được chuyển về chữ nhật khi mở generator. Prefab level đã lưu không bị thay đổi.
-### Generate và Save riêng
-
-Generate tạo bản nháp trong bộ nhớ và mở Auto Scene / Game preview, chưa tạo prefab/mesh asset hay thêm vào Factory. Save lưu đúng bản nháp hiện tại vào thư mục Generated; tùy chọn Add To Factory và Select As Starting Stage áp dụng lúc Save. Sau khi sửa config generator, bấm Generate lại để thay bản nháp. Có thể chỉnh MacaronLevel bản nháp rồi Save. Save bị khóa khi chưa có bản nháp hoặc sau khi đã lưu. Bản nháp chưa lưu bị bỏ khi compile/reload script, vào Play Mode hoặc đóng Unity.
-
-### Bán kính cua và khay xếp sát
-
-Corner Radius chỉnh bán kính đường tâm ở các góc băng chuyền. Giá trị nhỏ bị giới hạn trên nửa độ rộng belt 0,1 đơn vị để tránh gập mép trong; góc được giới hạn theo chiều dài cạnh. Vòng không feeder có thể được phóng lớn để đủ supply, làm bán kính cuối tăng theo.
-
-Khay xếp sát theo kích thước collider thật ở mỗi tầng, có tính tâm collider khi xoay. Mix Vertical Trays trộn ngang/dọc; Stack Layers chọn số tầng; Tray Gap chọn khe hở. Mystery Under Stacks dựa trên khay thực sự đè phía trên. Table Columns quyết định chiều rộng vùng xếp; số khay trong từng hàng thay đổi theo kích thước/hướng. Đây là thuật toán xếp gọn, không phải bộ giải tối ưu diện tích hay chứng minh level luôn thắng.
+- `Effective Color Count` / `Effective Cake Count`: số màu và tổng bánh thực tế.
+- `Override Cake Supply`: bật để chỉnh riêng `Color Count` (1–9) và `Cake Count`.
+- Tổng bánh phải chia hết cho 4 và mỗi màu có ít nhất 4 bánh. Cấu hình không hợp lệ được báo lỗi; không tự đổi số đã nhập.
+- Tắt override giữ supply Soda Shippers theo Conveyor Shape. Với Automatic, Inspector báo số của lần đầu level xuất hiện.
+- Runtime dựng lại số lượng và màu khay theo cùng supply. Preview chỉ hiển thị bố cục khay đã author.
 
 ### Feeder vượt mép màn hình
 Camera runtime và preview chỉ frame phần level chính, bỏ bounds feeder và nền Conveyor board. Các nhánh có thêm mesh nối thẳng vượt viewport 15%; mesh này tự cập nhật khi đổi kích thước màn hình. Đây là phần hình ảnh: giữ nguyên spline cấp bánh, hàng chờ và tốc độ. Muốn bánh hiện trên đoạn dài hơn, tăng Length của feeder rồi Generate / Save; camera không thu nhỏ theo chiều dài nhánh. Không chạy test hoặc Play Mode cho thay đổi này.

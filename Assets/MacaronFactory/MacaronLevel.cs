@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Splines;
+using BlockShooter.SodaConveyor;
 
 namespace BlockShooter
 {
@@ -20,6 +21,50 @@ namespace BlockShooter
     [DisallowMultipleComponent]
     public sealed class MacaronLevel : MonoBehaviour
     {
+        public enum ConveyorShape
+        {
+            Automatic = 0,
+            ConveyorTest_00 = 1, ConveyorTest_01, ConveyorTest_02, ConveyorTest_03, ConveyorTest_04,
+            ConveyorTest_05, ConveyorTest_06, ConveyorTest_07, ConveyorTest_08, ConveyorTest_09
+        }
+
+        [Header("Soda Shippers level conveyor")]
+        [Tooltip("Select the matching ConveyorTestScene layout and its supply. Automatic keeps the stage sequence.")]
+        public ConveyorShape conveyorShape = ConveyorShape.Automatic;
+        [Tooltip("Visible vertical gap between the tray pile and waiting slots, as a fraction of camera height.")]
+        [Range(.005f, .06f)] public float waitingSlotScreenGap = .015f;
+
+        public bool overrideCakeSupply;
+        [Range(1, 9)] public int colorCount = 6;
+        [Min(4)] public int cakeCount = 320;
+
+        public int ResolveConveyorStage(int stage) => conveyorShape != ConveyorShape.Automatic
+            ? Mathf.Clamp((int)conveyorShape, 1, 10)
+            : stage <= 10 ? Mathf.Max(1, stage) : new System.Random(stage).Next(3, 11);
+
+        public StageGroupSpec[] BuildConveyorSupply(int sourceStage,
+            out StageGroupSpec[] main, out StageBranchSpec[] branches)
+        {
+            int preset = sourceStage - 1;
+            main = StageLayout.MainGroups(preset);
+            branches = StageLayout.Branches(preset, sourceStage <= 3 ? 1f : sourceStage <= 7 ? 1.25f : 1.5f,
+                sourceStage <= 3 ? 20 : 24);
+            var original = main.Concat(branches.SelectMany(branch => branch.Groups)).ToArray();
+            if (!overrideCakeSupply) return original;
+            if (colorCount < 1 || colorCount > 9 || cakeCount < colorCount * 4 || cakeCount % 4 != 0)
+                throw new InvalidOperationException("Cake Count must be a multiple of 4, with at least 4 cakes per color (1–9 colors).");
+            var palette = original.Select(group => group.Color).Concat(new[] {
+                BlockColorType.Red, BlockColorType.Green, BlockColorType.Blue, BlockColorType.Yellow,
+                BlockColorType.Purple, BlockColorType.Orange, BlockColorType.Custom1,
+                BlockColorType.Custom2, BlockColorType.Custom3 }).Distinct().Take(colorCount).ToArray();
+            int rows = cakeCount / StageGroupSpec.LaneCount;
+            main = palette.Select((color, index) => new StageGroupSpec(color,
+                rows / colorCount + (index < rows % colorCount ? 1 : 0))).ToArray();
+            branches = branches.Select(branch => new StageBranchSpec(branch.Name, branch.MergeT,
+                branch.ConnectFromLeft, Array.Empty<StageGroupSpec>(), branch.Knots)).ToArray();
+            return main;
+        }
+
         [Serializable]
         public struct MacaronBatch
         {
@@ -116,6 +161,54 @@ namespace BlockShooter
         public bool bindWaitingSlotsToGates;
 
         public MacaronTray[] GetTrays() => trayRoot.GetComponentsInChildren<MacaronTray>(true);
+
+        public void SpreadTraysOnBoard()
+        {
+            var board = transform.Find("Tray board inset");
+            var surface = board != null ? board.GetComponent<Renderer>() : null;
+            var trays = GetTrays();
+            if (surface == null || trays.Length == 0) return;
+            // Use collider geometry directly: preview disables colliders before framing.
+            var boxes = trays.Select(tray =>
+            {
+                var collider = tray.GetComponent<BoxCollider>();
+                var box = new Bounds(tray.transform.TransformPoint(collider.center), Vector3.zero);
+                for (int x = -1; x <= 1; x += 2)
+                    for (int y = -1; y <= 1; y += 2)
+                        for (int z = -1; z <= 1; z += 2)
+                            box.Encapsulate(tray.transform.TransformPoint(collider.center +
+                                Vector3.Scale(collider.size * .5f, new Vector3(x, y, z))));
+                return box;
+            }).ToArray();
+            var offsets = TraySpreadOffsets(boxes, surface.bounds, .15f);
+            for (int i = 0; i < trays.Length; i++) trays[i].transform.position += offsets[i];
+        }
+
+        public static Vector3[] TraySpreadOffsets(Bounds[] trays, Bounds board, float margin)
+        {
+            var offsets = new Vector3[trays.Length];
+            if (trays.Length == 0) return offsets;
+            var occupied = trays[0];
+            foreach (var tray in trays) occupied.Encapsulate(tray);
+            // ponytail: expand the authored arrangement on axis-aligned boards; rotated boards need a local-space layout.
+            foreach (int axis in new[] { 0, 2 })
+            {
+                float available = board.extents[axis] - margin;
+                if (available < occupied.extents[axis]) continue; // Never compress trays into one another.
+                float scale = float.PositiveInfinity;
+                foreach (var tray in trays)
+                {
+                    float distance = Mathf.Abs(tray.center[axis] - occupied.center[axis]);
+                    if (distance > .0001f)
+                        scale = Mathf.Min(scale, (available - tray.extents[axis]) / distance);
+                }
+                if (!float.IsFinite(scale)) scale = 1;
+                foreach (int i in Enumerable.Range(0, trays.Length))
+                    offsets[i][axis] = board.center[axis] - occupied.center[axis] +
+                        (trays[i].center[axis] - occupied.center[axis]) * (Mathf.Max(1, scale) - 1);
+            }
+            return offsets;
+        }
 
         public void MoveRemainingBadgeToTraySide()
         {

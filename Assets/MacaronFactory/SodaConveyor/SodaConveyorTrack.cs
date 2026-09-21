@@ -493,15 +493,18 @@ namespace BlockShooter.SodaConveyor
 
             var bestDistSq = maxWorldDistMeters * maxWorldDistMeters;
             var bestT = -1f;
+            float bestForward = float.NegativeInfinity;
             foreach (var slot in _slots)
             {
                 if (slot.IsOccupied) continue;
                 _spline.Spline.Evaluate(slot.RowT, out var localPos, out _, out _);
                 var worldPos = transform.TransformPoint((Vector3)localPos);
                 var distSq = (worldPos - mergeWorldPos).sqrMagnitude;
-                if (distSq < bestDistSq)
+                EvaluateWorld(slot.RowT, out var forward);
+                float downstream = Vector3.Dot(worldPos - mergeWorldPos, forward);
+                if (distSq < bestDistSq && downstream > bestForward)
                 {
-                    bestDistSq = distSq;
+                    bestForward = downstream;
                     bestT = slot.RowT;
                 }
             }
@@ -561,6 +564,15 @@ namespace BlockShooter.SodaConveyor
         }
 
         public void Advance(float deltaTime)
+        {
+            if (_trackWorldLength <= 0f || deltaTime <= 0) return;
+            // Keep inlet decisions finer than one row even on a slow frame.
+            float step = RowSpacing / Mathf.Max(.01f, speed) * .2f;
+            int steps = Mathf.Max(1, Mathf.CeilToInt(deltaTime / step));
+            for (int i = 0; i < steps; i++) AdvanceStep(deltaTime / steps);
+        }
+
+        private void AdvanceStep(float deltaTime)
         {
             if (_trackWorldLength <= 0f) return;
             _deltaTime = Mathf.Max(0, deltaTime);

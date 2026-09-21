@@ -10,6 +10,7 @@ namespace BlockShooter.Editor
     [CustomEditor(typeof(MacaronLevel))]
     public sealed class MacaronLevelInspector : UnityEditor.Editor
     {
+        private bool _showReferences;
         public override void OnInspectorGUI()
         {
             MacaronLevelPreview.Watch((MacaronLevel)target);
@@ -19,30 +20,67 @@ namespace BlockShooter.Editor
                 MacaronLevelPreview.Enabled = preview;
                 if (!preview) MacaronLevelPreview.Clear(); else MacaronLevelPreview.Refresh();
             }
-            if (DrawDefaultInspector()) MacaronLevelPreview.Refresh();
-            EditorGUILayout.HelpBox("Edit Mode preview refreshes automatically. It shows layout, cake spacing and camera without playing the game. Turn it off before viewing other scenes. Runtime changes during Play Mode are not copied back to the prefab.", MessageType.Info);
-            if (!string.IsNullOrEmpty(MacaronLevelPreview.Error)) EditorGUILayout.HelpBox(MacaronLevelPreview.Error, MessageType.Warning);
-            EditorGUILayout.HelpBox("Edit this prefab in Prefab Mode. Move/rotate children under Trays. Each tray stores its color, stack layer and mystery flag. Enable Use Custom Macaron Order to author supply independently; batches are read top to bottom. Otherwise sibling order breaks ties. Edit Conveyor Path with Unity's Spline tool.", MessageType.Info);
             var selected = (MacaronLevel)target;
-            if (selected.useCustomMacaronOrder && selected.trayRoot != null)
+            var factory = Object.FindFirstObjectByType<MacaronFactory>();
+            var asset = PrefabUtility.GetCorrespondingObjectFromSource(selected) ?? selected;
+            var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (prefabStage != null && selected.gameObject.scene == prefabStage.scene)
+                asset = AssetDatabase.LoadAssetAtPath<MacaronLevel>(prefabStage.assetPath);
+            int stage = factory != null ? System.Array.IndexOf(factory.levels, asset) + 1 : 1;
+            stage = Mathf.Max(1, stage);
+            serializedObject.Update();
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Level cake configuration", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("conveyorShape"));
+            var custom = serializedObject.FindProperty("overrideCakeSupply");
+            var colors = serializedObject.FindProperty("colorCount");
+            var cakes = serializedObject.FindProperty("cakeCount");
+            bool wasCustom = custom.boolValue;
+            EditorGUILayout.PropertyField(custom, new GUIContent("Override Cake Supply"));
+            if (custom.boolValue && !wasCustom)
             {
-                try
-                {
-                    var supply = selected.BuildMacaronOrder();
-                    EditorGUILayout.HelpBox($"{supply.Count} cakes / {Mathf.CeilToInt((float)supply.Count / Mathf.Max(1, selected.columns))} rows. Color counts match the trays. This does not check solvability.", MessageType.Info);
-                }
-                catch (System.Exception error) { EditorGUILayout.HelpBox(error.Message, MessageType.Error); }
+                var defaults = selected.BuildConveyorSupply(selected.ResolveConveyorStage(stage), out _, out _);
+                colors.intValue = defaults.Select(group => group.Color).Distinct().Count();
+                cakes.intValue = defaults.Sum(group => group.RowCount * 4);
             }
+            if (custom.boolValue)
+            {
+                EditorGUILayout.PropertyField(colors, new GUIContent("Color Count"));
+                EditorGUILayout.PropertyField(cakes, new GUIContent("Cake Count"));
+            }
+            EditorGUILayout.HelpBox("Override enables per-level counts. Cake Count must be a multiple of 4 and at least Color Count × 4. Runtime trays use the same supply. Automatic shape counts below refer to this level's first stage.", MessageType.Info);
+            if (serializedObject.ApplyModifiedProperties()) MacaronLevelPreview.Refresh();
+            try
+            {
+                var supply = selected.BuildConveyorSupply(selected.ResolveConveyorStage(stage), out _, out _);
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.IntField("Effective Color Count", supply.Select(group => group.Color).Distinct().Count());
+                    EditorGUILayout.IntField("Effective Cake Count", supply.Sum(group => group.RowCount * 4));
+                }
+            }
+            catch (System.Exception error) { EditorGUILayout.HelpBox(error.Message, MessageType.Error); }
+            serializedObject.Update();
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Layout and camera", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("waitingSlotScreenGap"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraTilt"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraFieldOfView"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraPadding"));
+            _showReferences = EditorGUILayout.Foldout(_showReferences, "Scene references", true);
+            if (_showReferences)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(serializedObject.FindProperty("trayRoot"));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty("waitingSlots"), true);
+                EditorGUILayout.PropertyField(serializedObject.FindProperty("counterAnchor"));
+                EditorGUI.indentLevel--;
+            }
+            if (serializedObject.ApplyModifiedProperties()) MacaronLevelPreview.Refresh();
+            EditorGUILayout.HelpBox("Preview shows the authored layout. Runtime rebuilds tray colors and quantities from the cake configuration. Edit tray positions in Prefab Mode.", MessageType.Info);
+            if (!string.IsNullOrEmpty(MacaronLevelPreview.Error)) EditorGUILayout.HelpBox(MacaronLevelPreview.Error, MessageType.Warning);
             if (GUILayout.Button("Refresh scene / game preview")) MacaronLevelPreview.Refresh();
             if (GUILayout.Button("Focus preview in Scene")) MacaronLevelPreview.Focus();
-            using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode || selected.trayRoot == null))
-                if (GUILayout.Button("Compact trays (uses Tray Gap)"))
-                {
-                    MacaronLevelGenerator.CompactTrays(selected);
-                    MacaronLevelPreview.Refresh();
-                }
-            EditorGUILayout.Space();
-            MacaronLevelGenerator.Draw(selected);
         }
     }
 

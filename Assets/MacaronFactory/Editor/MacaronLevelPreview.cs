@@ -85,44 +85,46 @@ namespace BlockShooter.Editor
 
         private static void Build(MacaronFactory factory)
         {
-            _source.ValidateLayout();
             _root = new GameObject("Macaron level preview (not saved)") { hideFlags = HideFlags.HideAndDontSave };
             SceneManager.MoveGameObjectToScene(_root, factory.gameObject.scene);
             _root.transform.position = Vector3.right * 1000;
             var level = Object.Instantiate(_source, _root.transform);
             level.transform.localPosition = Vector3.zero;
-            level.AlignExitToWaitingSlots();
-            float scale = Mathf.Max(.1f, factory.conveyorMacaronScale);
-            float diameter = scale * factory.macaronPrefabs.Max(p => {
-                var b = p.GetComponent<Renderer>().localBounds;
-                return 2 * Mathf.Max(Mathf.Abs(b.center.x) + b.extents.x, Mathf.Abs(b.center.z) + b.extents.z);
-            });
-            float laneSpacing = Mathf.Max(level.laneSpacing, diameter + .015f);
-            var track = level.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
-            track.beltHalfWidth = laneSpacing * (level.columns - 1) * .5f + Mathf.Max(.16f, diameter * .5f + .02f);
-            track.railHeight = .18f; track.wallAboveBelt = .045f;
-            foreach (var junction in level.feederBranches)
-            {
-                junction.Branch.beltHalfWidth = track.beltHalfWidth;
-                junction.SyncJunction();
-            }
-            track.BuildMesh();
+            int preset = level.conveyorShape == MacaronLevel.ConveyorShape.Automatic
+                ? Mathf.Max(0, Array.IndexOf(factory.levels, _source)) % 10 : (int)level.conveyorShape - 1;
+            if (level.conveyorPath != null) level.conveyorPath.gameObject.SetActive(false);
+            foreach (var branch in level.feederBranches) if (branch != null) branch.gameObject.SetActive(false);
+            if (level.collectionGate != null) level.collectionGate.gameObject.SetActive(false);
+            if (level.gateMountRoot != null) level.gateMountRoot.gameObject.SetActive(false);
+            foreach (Transform child in level.transform)
+                if (child.name.StartsWith("Conveyor board")) child.gameObject.SetActive(false);
+            var source = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/MacaronFactory/ConveyorPresets/ConveyorTest_{preset:00}.prefab");
+            if (source == null) throw new InvalidOperationException("Missing conveyor preset library.");
+            var belt = Object.Instantiate(source, level.transform);
+            // Runtime also adds an inlet to the two originally branchless shapes.
+            var track = belt.AddComponent<SodaConveyor.SodaConveyorTrack>();
+            track.SideMaterial = belt.GetComponent<Renderer>().sharedMaterials[0];
+            track.TopMaterial = belt.GetComponent<Renderer>().sharedMaterials[1];
+            track.SetTrackShape(preset, 1);
+            track.Configure(factory.sourceLoopSpeed);
+            track.BuildVisualBelt();
+            var mainBounds = new Bounds(track.EvaluateWorld(0, out _), Vector3.zero);
+            for (int i = 1; i < 128; i++) mainBounds.Encapsulate(track.EvaluateWorld(i / 128f, out _));
+            mainBounds.Expand(track.OuterRadius * 2 + .3f);
+            var offset = new Vector3(level.waitingSlots.Average(slot => slot.position.x) - mainBounds.center.x,
+                0, level.waitingSlots.Max(slot => slot.position.z) + 1 - mainBounds.min.z);
+            belt.transform.position += offset;
+            mainBounds.center += offset;
             foreach (var tray in level.GetTrays())
             {
                 if (tray.lid != null) tray.lid.gameObject.SetActive(tray.mystery);
                 factory.ApplyTrayAppearance(tray.tintRenderers, tray.levelColor);
             }
-            var colors = level.BuildMacaronOrder();
-            foreach (var pose in MacaronLoopFlow.PreviewLayout(level, diameter))
-            {
-                var prefab = factory.MacaronPrefab(colors[pose.index]);
-                var cake = Object.Instantiate(prefab, pose.position, pose.rotation, _root.transform);
-                factory.ApplyMacaronColor(cake.GetComponent<Renderer>(), colors[pose.index]);
-                cake.transform.localScale = Vector3.one * scale;
-                cake.transform.position += cake.transform.up * (-prefab.GetComponent<Renderer>().localBounds.min.y * scale);
-            }
+            System.Collections.Generic.IEnumerable<Bounds> PreviewBounds() => level.GetComponentsInChildren<Renderer>()
+                .Where(renderer => renderer.enabled && renderer.name != "Factory floor" && !renderer.transform.IsChildOf(belt.transform))
+                .Select(renderer => renderer.bounds).Concat(new[] { mainBounds });
             foreach (var collider in _root.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
-            var bounds = MacaronCameraFrame.CoreBounds(level);
+            var bounds = PreviewBounds().ToArray();
             _bounds = bounds[0]; foreach (var b in bounds) _bounds.Encapsulate(b);
             var cameraObject = new GameObject("Level preview camera");
             cameraObject.transform.SetParent(_root.transform);
@@ -133,7 +135,9 @@ namespace BlockShooter.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(.88f, .85f, .78f);
             camera.enabled = true;
-            cameraObject.AddComponent<MacaronCameraFrame>().FrameLevel(level);
+            cameraObject.AddComponent<MacaronCameraFrame>().FrameFactoryLayout(level, PreviewBounds);
+            bounds = PreviewBounds().ToArray();
+            _bounds = bounds[0]; foreach (var box in bounds) _bounds.Encapsulate(box);
             foreach (var t in _root.GetComponentsInChildren<Transform>(true)) t.gameObject.hideFlags = HideFlags.HideAndDontSave;
         }
     }

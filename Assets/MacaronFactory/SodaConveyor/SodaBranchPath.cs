@@ -131,7 +131,7 @@ namespace BlockShooter.SodaConveyor
         {
             if (_track == null || !_track.enabled || _rows.Count == 0) return;
 
-            var delta = _splineLength > 0f ? _track.Speed / _splineLength * deltaTime : 0f;
+            var delta = _splineLength > 0f ? _track.Speed * 1.25f / _splineLength * deltaTime : 0f;
 
             for (var i = 0; i < _rows.Count; i++)
             {

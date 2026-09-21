@@ -317,10 +317,16 @@ MonoBehaviour:
   hudGreenButtonPressedSprite: {fileID: 21300000, guid: 3c4e5ad54aa17436ea550264b33ea00b, type: 3}
   conveyorSource: {fileID: 3106933310930561449, guid: 515137003caa54646adb1465f557790e, type: 3}
   levels:
+  - {fileID: 2093313527665229199, guid: cbb1af2ea27ab4549bd2f12d903936c5, type: 3}
   - {fileID: 8771080922117147080, guid: a408b63c445714649bae5b512fd9cbf8, type: 3}
-  - {fileID: 8670259539492595232, guid: 1e7f57708c1c2a54fb338dc9c2ee9932, type: 3}
-  - {fileID: 8962492105715170877, guid: 4208b286bfe758b46a51eab151e735f4, type: 3}
-  - {fileID: 8588243920597168913, guid: a796f1636c973734bb4e42dfe71cb750, type: 3}
+  - {fileID: 8771080922117147080, guid: a499a0d64fb3ddc4cb485db3fd42a005, type: 3}
+  - {fileID: 8771080922117147080, guid: 74acb933ba8865745a8984f06bcf19a8, type: 3}
+  - {fileID: 8771080922117147080, guid: 9b8080db73b82ac4093d0b0c722432ab, type: 3}
+  - {fileID: 8771080922117147080, guid: c7bd21c3fcb69c7438e6fab360d839c9, type: 3}
+  - {fileID: 8771080922117147080, guid: 85ed341581b15de4886b45fc17a216cd, type: 3}
+  - {fileID: 8771080922117147080, guid: 4f912ffde8aeeab49a133dc324f42b35, type: 3}
+  - {fileID: 8771080922117147080, guid: ca4d1750a300c784a90a9c3957cfb17e, type: 3}
+  - {fileID: 8771080922117147080, guid: dd8740e1a6b6be24e853a70561db84d4, type: 3}
   macaronPrefabs:
   - {fileID: 6649432844117656782, guid: fa3edb152a9942e4c888cb4bb0efb13c, type: 3}
   - {fileID: 8223698897166863487, guid: dfb37d26ec7ae2149b2e76c31329e749, type: 3}
@@ -329,7 +335,7 @@ MonoBehaviour:
   - {fileID: 57351702298609094, guid: 677bc95c44ae3ac49901af2a0723c465, type: 3}
   - {fileID: 6221063533694578287, guid: 564f6f32629207a47a5af229ddbc807d, type: 3}
   colorRegistry: {fileID: 0}
-  conveyorMacaronScale: 1.3
+  conveyorMacaronScale: 1.2
   macaronExitTime: 0.6
   macaronExitCurve:
     serializedVersion: 2
@@ -389,7 +395,7 @@ MonoBehaviour:
   trayValidClickTime: 0.1
   trayValidClickScale: 0.92
   trayInvalidClickTime: 0.25
-  trayInvalidClickAngle: 6
+  trayInvalidClickAngle: 30
   trayReceiveScaleMultiplier: 1.2
   trayReceiveBounceTime: 0.1
   coveredTrayDarkness: 0.2
@@ -397,7 +403,7 @@ MonoBehaviour:
   unlockSlotCost: 100
   shippingReward: 50
   deadlockDelay: 1.5
-  sourceLoopSpeed: 0.09
+  sourceLoopSpeed: 0.2
 --- !u!114 &1412556477
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -468,7 +474,7 @@ Light:
   serializedVersion: 11
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 1.3
+  m_Intensity: 2
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -530,13 +536,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1603656928}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.40305823, y: -0.27253202, z: 0.12708378, w: 0.8643611}
+  m_LocalRotation: {x: 0.38268343, y: 0, z: 0, w: 0.92387956}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 45, y: 0, z: 0}
 --- !u!114 &1603656931
 MonoBehaviour:
   m_ObjectHideFlags: 0

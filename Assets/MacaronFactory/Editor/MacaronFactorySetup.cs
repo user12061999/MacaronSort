@@ -151,6 +151,40 @@ namespace BlockShooter.Editor
         [MenuItem("Tools/Macaron Factory/Run Checks")]
         public static void RunChecks()
         {
+            var spreadBoxes = new[] {
+                new Bounds(new Vector3(-1, 0, -1), Vector3.one),
+                new Bounds(new Vector3(1, 2, 1), Vector3.one) };
+            var spread = MacaronLevel.TraySpreadOffsets(spreadBoxes,
+                new Bounds(Vector3.zero, new Vector3(6, 1, 8)), .15f);
+            Check(Mathf.Abs(spreadBoxes[0].min.x + spread[0].x + 2.85f) < .001f &&
+                Mathf.Abs(spreadBoxes[1].max.z + spread[1].z - 3.85f) < .001f &&
+                spread.All(offset => offset.y == 0), "Trays must reach board margins without changing stack heights");
+            var cameraObject = new GameObject("Tray clearance check") { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                var supplyLevel = cameraObject.AddComponent<MacaronLevel>();
+                supplyLevel.overrideCakeSupply = true;
+                supplyLevel.colorCount = 9;
+                supplyLevel.cakeCount = 100;
+                var configured = supplyLevel.BuildConveyorSupply(1, out var mainSupply, out var branchSupply);
+                Check(configured.Sum(group => group.RowCount * 4) == 100 &&
+                    configured.Select(group => group.Color).Distinct().Count() == 9,
+                    "Custom supply must preserve exact cake and color counts including remainder rows");
+                var fed = SodaConveyor.StageLayout.FeedAllFromBranches(0, mainSupply, branchSupply);
+                Check(fed.SelectMany(branch => branch.Groups).Sum(group => group.RowCount * 4) == 100,
+                    "Feeding custom supply must not append the source stage's original cakes");
+                var camera = cameraObject.AddComponent<Camera>();
+                camera.transform.SetPositionAndRotation(new Vector3(0, 10, -10), Quaternion.Euler(45, 0, 0));
+                camera.fieldOfView = 35;
+                var slots = new[] { new Bounds(Vector3.zero, Vector3.one) };
+                var pile = new Bounds(new Vector3(0, 3, -1), new Vector3(2, 3, 2));
+                float shift = MacaronCameraFrame.TrayClearanceShift(camera, new[] { pile }, slots, Vector3.back, .015f);
+                Check(float.IsFinite(shift) && shift > 0, "A tall foreground pile must move below the waiting slots");
+                pile.center += Vector3.back * (shift + .001f);
+                Check(MacaronCameraFrame.TrayClearanceShift(camera, new[] { pile }, slots, Vector3.back, .015f) < .0001f,
+                    "Projected tray bounds must clear the waiting slots after shifting");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(cameraObject); }
             for (int preset = 0; preset < 10; preset++)
             {
                 var main = SodaConveyor.StageLayout.MainGroups(preset);

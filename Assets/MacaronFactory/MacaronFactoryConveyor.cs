@@ -17,6 +17,13 @@ namespace BlockShooter
         private readonly List<ConveyorBlock3D> _sourcePickup = new();
         private ColorRegistryConfig _sourceColors;
 
+        private void FrameTrayBoard()
+        {
+            var camera = Camera.main;
+            var frame = camera.GetComponent<MacaronCameraFrame>() ?? camera.gameObject.AddComponent<MacaronCameraFrame>();
+            frame.FrameFactoryLayout(_layout, SourceCameraBounds);
+        }
+
         private IEnumerable<Bounds> SourceCameraBounds()
         {
             foreach (var renderer in _layout.GetComponentsInChildren<Renderer>())
@@ -51,13 +58,9 @@ namespace BlockShooter
                 throw new InvalidOperationException("Macaron layout needs six waiting slots and authored tray templates.");
 
             // Source stages 1–10, then replays of 3–10. Seed by displayed stage so Retry keeps its layout.
-            SourceStage = Stage <= 10 ? Stage : new System.Random(Stage).Next(3, 11);
+            SourceStage = _layout.ResolveConveyorStage(Stage);
             int preset = SourceStage - 1;
-            float contentScale = SourceStage <= 3 ? 1f : SourceStage <= 7 ? 1.25f : 1.5f;
-            int quantum = SourceStage <= 3 ? 20 : 24;
-            var main = StageLayout.MainGroups(preset);
-            var branches = StageLayout.Branches(preset, contentScale, quantum);
-            var supply = main.Concat(branches.SelectMany(branch => branch.Groups)).ToArray();
+            var supply = _layout.BuildConveyorSupply(SourceStage, out var main, out var branches);
             branches = StageLayout.FeedAllFromBranches(preset, main, branches);
             AddSourceColors();
 

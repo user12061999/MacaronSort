@@ -181,15 +181,8 @@ namespace BlockShooter
             MacaronLevelVisualPolish.Apply(_layout);
             _remainingBadge = _layout.transform.Find("Remaining badge");
             BuildConveyor();
+            FrameTrayBoard();
             BuildTrays();
-            if (_layout != null)
-            {
-                var camera = Camera.main;
-                var frame = camera.GetComponent<MacaronCameraFrame>() ?? camera.gameObject.AddComponent<MacaronCameraFrame>();
-                frame.Frame(SourceCameraBounds(),
-                    _layout.cameraTilt, _layout.cameraFieldOfView, _layout.cameraPadding);
-                camera.backgroundColor = new Color(.88f, .85f, .78f);
-            }
             BuildHud();
             RefreshAccessibility();
             GameManager.Instance.SetState(GameState.Playing);
@@ -897,7 +890,7 @@ namespace BlockShooter
 
             // Sound Button
             bool soundOn = PlayerPrefs.GetInt("SoundButton", 0) == 0;
-            var soundBtn = StyledButton(panel.transform, soundOn ? "SOUND: ON" : "SOUND: OFF", new Vector2(.5f, .69f), new Vector2(360, 64), null,
+            var soundBtn = StyledButton(panel.transform, soundOn ? "SOUND: ON" : "SOUND: OFF", new Vector2(.5f, .70f), new Vector2(360, 64), null,
                 icon: soundOn ? hudSoundOnIcon : hudSoundOffIcon);
             var soundText = soundBtn.GetComponentInChildren<TextMeshProUGUI>();
             var soundIconImg = soundBtn.transform.Find("Icon")?.GetComponent<Image>();
@@ -917,7 +910,7 @@ namespace BlockShooter
 
             // Haptic Button
             bool hapticOn = PlayerPrefs.GetInt("HapticButton", 0) == 0;
-            var hapticBtn = StyledButton(panel.transform, hapticOn ? "HAPTIC: ON" : "HAPTIC: OFF", new Vector2(.5f, .54f), new Vector2(360, 64), null,
+            var hapticBtn = StyledButton(panel.transform, hapticOn ? "HAPTIC: ON" : "HAPTIC: OFF", new Vector2(.5f, .56f), new Vector2(360, 64), null,
                 icon: hudHapticIcon);
             var hapticText = hapticBtn.GetComponentInChildren<TextMeshProUGUI>();
             hapticBtn.onClick.AddListener(() =>
@@ -932,14 +925,20 @@ namespace BlockShooter
             });
 
             // Retry Button (Requested: Retry placed in Settings Popup)
-            StyledButton(panel.transform, "RETRY STAGE", new Vector2(.5f, .38f), new Vector2(360, 66), () =>
+            StyledButton(panel.transform, "RETRY STAGE", new Vector2(.5f, .42f), new Vector2(360, 66), () =>
             {
                 Time.timeScale = 1f;
                 Reload();
             }, icon: hudRetryIcon);
 
+            StyledButton(panel.transform, "NEXT LEVEL", new Vector2(.5f, .28f), new Vector2(360, 66), () =>
+            {
+                Stage++;
+                Reload();
+            });
+
             // Resume Button
-            var resumeBtn = StyledButton(panel.transform, "RESUME", new Vector2(.5f, .20f), new Vector2(360, 68), CloseSettings,
+            var resumeBtn = StyledButton(panel.transform, "RESUME", new Vector2(.5f, .14f), new Vector2(360, 68), CloseSettings,
                 customSprite: hudGreenButtonSprite, customPressed: hudGreenButtonPressedSprite);
             var resumeText = resumeBtn.GetComponentInChildren<TextMeshProUGUI>();
             if (resumeText != null)

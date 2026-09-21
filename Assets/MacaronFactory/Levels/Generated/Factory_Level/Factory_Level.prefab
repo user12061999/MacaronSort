@@ -273,22 +273,16 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 0
   resolution: 100
   vTiling: 8
-  sweepFrom: 0
-  sweepTo: 0.743513
-  capSweepEnds: 1
-  openings: []
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
   trimBranchEnd: 0
   mainTrackSpline: {fileID: 0}
+  sweepFrom: 0
+  sweepTo: 0.743513
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
+  openings: []
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!114 &6545513171722939483
@@ -376,6 +370,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d50afeb2cb348834a8213f590643ca57, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  conveyorShape: 1
+  waitingSlotScreenGap: 0.015
+  overrideCakeSupply: 0
+  colorCount: 6
+  cakeCount: 320
   useCustomMacaronOrder: 1
   macaronOrder:
   - color: 2
@@ -457,6 +456,11 @@ MonoBehaviour:
   - {fileID: 4135939292502058325}
   counterAnchor: {fileID: 104214778474808602}
   columns: 2
+  clusterColors: 1
+  colorClusterSize: 12
+  minColorRunRows: 1
+  maxColorRunRows: 10
+  activeColorLimit: 3
   laneSpacing: 0.26
   rowSpacing: 0.24
   stopBeforeExit: 0.08
@@ -827,22 +831,16 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 0
   resolution: 100
   vTiling: 8
-  sweepFrom: 0
-  sweepTo: 0.743513
-  capSweepEnds: 1
-  openings: []
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
   trimBranchEnd: 0
   mainTrackSpline: {fileID: 0}
+  sweepFrom: 0
+  sweepTo: 0.743513
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
+  openings: []
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!114 &2343503897539352471
@@ -1866,13 +1864,15 @@ MonoBehaviour:
   railHeight: 0.18
   railWidth: 0.05
   bevelSize: 0.04
-  bevelSegments: 1
-  closeBottom: 0
   resolution: 240
   vTiling: 8
+  trimBranchEnd: 0
+  mainTrackSpline: {fileID: 0}
   sweepFrom: 0
   sweepTo: 1
-  capSweepEnds: 1
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
   openings:
   - label: Junction:Left feeder:-302226
     enabled: 1
@@ -1884,6 +1884,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 0.2, g: 0.85, b: 1, a: 1}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   - label: Junction:Right feeder:-302262
     enabled: 1
     side: 1
@@ -1894,6 +1897,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 0.2, g: 0.85, b: 1, a: 1}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   - label: Collection gate
     enabled: 1
     side: 1
@@ -1904,14 +1910,9 @@ MonoBehaviour:
     skirt: 1
     lipHeight: 0
     gizmoColor: {r: 1, g: 0.5, b: 0.12, a: 1}
-  separateGateSubmesh: 0
-  generateCollider: 0
-  autoRebuild: 1
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
-  _legacyMigrated: 1
-  trimBranchEnd: 0
-  mainTrackSpline: {fileID: 0}
+    cutInnerWall: 1
+    cutOuterWall: 0
+    cutBelt: 0
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!1 &4751696804786623931
