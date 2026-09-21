@@ -35,6 +35,9 @@ namespace BlockShooter.SodaConveyor
         [SerializeField] bool trimBranchEnd;
         [SerializeField] SplineContainer mainTrackSpline;
 
+        [Header("Pickup gate (outer/right wall, ending at the loop seam)")]
+        [Range(0f, 0.5f)] public float pickupWindowFraction;
+
         SplineContainer _spline;
         MeshFilter _meshFilter;
 
@@ -100,12 +103,18 @@ namespace BlockShooter.SodaConveyor
             var profile = BuildProfile();
             var pCount = profile.Length;
             var edgeCount = pCount - 1; // excludes the open underside (P11 -> P0)
-            var sCount = resolution + 1;
+            var samples = new List<float>(resolution + 2);
+            for (var s = 0; s <= resolution; s++) samples.Add((float)s / resolution);
+            var gateStart = 1f - Mathf.Clamp(pickupWindowFraction, 0f, .5f);
+            var hasGate = _spline.Spline.Closed && gateStart < 1f;
+            if (hasGate && !samples.Contains(gateStart)) samples.Add(gateStart);
+            samples.Sort();
+            var sCount = samples.Count;
 
             var wPos = new Vector3[sCount];
             var wRight = new Vector3[sCount];
             var wUp = new Vector3[sCount];
-            SampleFrames(sCount, wPos, wRight, wUp);
+            SampleFrames(samples, wPos, wRight, wUp);
 
             var perimU = ComputeProfilePerimU(profile);
             var splineV = ComputeSplineV(wPos, sCount);
@@ -150,8 +159,28 @@ namespace BlockShooter.SodaConveyor
                 var isBelt = e == beltEdge;
                 var tris = isBelt ? trisBelt : trisWall;
 
-                for (var s = 0; s < resolution; s++)
+                for (var s = 0; s < sCount - 1; s++)
                 {
+                    if (hasGate && e > beltEdge && samples[s] >= gateStart)
+                    {
+                        // Keep the lower outer wall and a flat sill exactly at belt height.
+                        if (e == 6 || e == 10)
+                        {
+                            var a = e == 6 ? profile[6] : new Vector2(beltHalfWidth + railWidth, 0f);
+                            var end = e == 6 ? new Vector2(beltHalfWidth + railWidth, 0f) : profile[11];
+                            var first = verts.Count;
+                            for (var ring = s; ring <= s + 1; ring++)
+                            {
+                                verts.Add(ToWorld(a, ring, wPos, wRight, wUp));
+                                verts.Add(ToWorld(end, ring, wPos, wRight, wUp));
+                                uvs.Add(new Vector2(perimU[e], splineV[ring]));
+                                uvs.Add(new Vector2(perimU[e + 1], splineV[ring]));
+                            }
+                            trisWall.Add(first); trisWall.Add(first + 2); trisWall.Add(first + 1);
+                            trisWall.Add(first + 1); trisWall.Add(first + 2); trisWall.Add(first + 3);
+                        }
+                        continue;
+                    }
                     // A branch's ring fully clipped onto the main track's outer wall at
                     // both ends of this segment is a degenerate (zero-extent) strip —
                     // skip it instead of drawing a collapsed sliver into the main track.
@@ -164,6 +193,14 @@ namespace BlockShooter.SodaConveyor
                     tris.Add(b); tris.Add(b + 2); tris.Add(b + 1);
                     tris.Add(b + 1); tris.Add(b + 2); tris.Add(b + 3);
                 }
+            }
+
+            if (hasGate)
+            {
+                var wallProfile = new[] { profile[6], profile[7], profile[8], profile[9],
+                    profile[10], new Vector2(beltHalfWidth + railWidth, 0f) };
+                AddEndCap(wallProfile, wPos, wRight, wUp, verts, uvs, trisWall, samples.IndexOf(gateStart));
+                AddEndCap(wallProfile, wPos, wRight, wUp, verts, uvs, trisWall, sCount - 1);
             }
 
             // Closed loop (Block Shooter's own belts are always loops) needs no end
@@ -274,11 +311,11 @@ namespace BlockShooter.SodaConveyor
             return true; // all vertices are inside
         }
 
-        void SampleFrames(int sCount, Vector3[] wPos, Vector3[] wRight, Vector3[] wUp)
+        void SampleFrames(List<float> samples, Vector3[] wPos, Vector3[] wRight, Vector3[] wUp)
         {
-            for (var s = 0; s < sCount; s++)
+            for (var s = 0; s < samples.Count; s++)
             {
-                var t = (float)s / resolution;
+                var t = samples[s];
                 _spline.Spline.Evaluate(t, out var pos, out var tan, out var up);
 
                 var fwd = ((Vector3)tan).normalized;

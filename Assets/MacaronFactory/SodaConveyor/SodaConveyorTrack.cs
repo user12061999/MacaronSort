@@ -255,6 +255,7 @@ namespace BlockShooter.SodaConveyor
             if (GetComponent<MeshRenderer>() == null) gameObject.AddComponent<MeshRenderer>();
             _meshBuilder.BeltHalfWidth = beltHalfWidth;
             _meshBuilder.RailWidth = StageTrackData.RailWidth;
+            _meshBuilder.pickupWindowFraction = exitWindowFraction;
         }
 
         public Material SideMaterial;
