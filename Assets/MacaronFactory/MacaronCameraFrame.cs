@@ -15,10 +15,12 @@ namespace BlockShooter
         private int _width, _height;
         private Rect _safeArea;
         private MacaronLevel _level;
+        private Transform _floor;
         private readonly List<ConveyorTrackMeshBuilder> _extensions = new();
 
         public void FrameFactoryLayout(MacaronLevel level, System.Func<IEnumerable<Bounds>> sceneBounds)
         {
+            _floor = level.transform.Find("Factory floor");
             level.SpreadTraysOnBoard();
             var camera = GetComponent<Camera>();
             var waiting = level.waitingSlots.SelectMany(slot => slot.GetComponentsInChildren<Renderer>())
@@ -26,7 +28,7 @@ namespace BlockShooter
             var bench = level.transform.Find("Waiting bench rim");
             if (bench != null) waiting.AddRange(bench.GetComponentsInChildren<Renderer>().Select(renderer => renderer.bounds));
             var trays = level.trayRoot.GetComponentsInChildren<Renderer>(true);
-            var boards = new[] { level.transform.Find("Tray board rim"), level.transform.Find("Tray board inset") };
+            var boards = level.transform.Cast<Transform>().Where(t => t.name.StartsWith("Tray board ")).ToArray();
             // ponytail: bounded startup fitting for authored boards; use a layout solver for freely moving cameras.
             for (int pass = 0; pass < 16; pass++)
             {
@@ -79,6 +81,7 @@ namespace BlockShooter
         public void FrameLevel(MacaronLevel level)
         {
             _level = level;
+            _floor = level.transform.Find("Factory floor");
             Frame(CoreBounds(level), level.cameraTilt, level.cameraFieldOfView, level.cameraPadding);
         }
 
@@ -132,7 +135,32 @@ namespace BlockShooter
             Fits(far + .02f, slopes, out var center);
             transform.position = transform.rotation * new Vector3(center.x, center.y, -far - .02f);
             _camera.farClipPlane = Mathf.Max(100, maxZ + far + 10);
+            FitFloor();
             ExtendFeeders();
+        }
+
+        private void FitFloor()
+        {
+            if (_floor == null) return;
+            var mesh = _floor.GetComponent<MeshFilter>();
+            if (mesh == null || mesh.sharedMesh == null) return;
+            var bounds = mesh.sharedMesh.bounds;
+            var plane = new Plane(_floor.up, _floor.TransformPoint(new Vector3(bounds.center.x, bounds.max.y, bounds.center.z)));
+            var visible = new Bounds();
+            for (int i = 0; i < 4; i++)
+            {
+                var ray = _camera.ViewportPointToRay(new Vector3(i % 2, i / 2, 0));
+                if (!plane.Raycast(ray, out float distance)) return;
+                var point = _floor.InverseTransformPoint(ray.GetPoint(distance));
+                if (i == 0) visible = new Bounds(point, Vector3.zero); else visible.Encapsulate(point);
+            }
+            // Keep the rounded panel's corners outside the viewport as well as its straight edges.
+            var scale = _floor.localScale;
+            scale.x *= visible.size.x * 1.25f / bounds.size.x;
+            scale.z *= visible.size.z * 1.25f / bounds.size.z;
+            var center = _floor.TransformPoint(new Vector3(visible.center.x, bounds.center.y, visible.center.z));
+            _floor.localScale = scale;
+            _floor.position += center - _floor.TransformPoint(bounds.center);
         }
 
         private void ExtendFeeders()
