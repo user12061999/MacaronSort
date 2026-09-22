@@ -139,6 +139,21 @@ namespace BlockShooter
             }
 
             // Reuse authored tray positions/stacks; add full stack tiers only when source content needs them.
+            if (_layout.shuffleTrayColors)
+            {
+                var random = new System.Random(_layout.trayArrangementSeed);
+                foreach (var capacity in orders.Select(order => order.template.Capacity).Distinct().ToArray())
+                {
+                    var indices = Enumerable.Range(0, orders.Count).Where(i => orders[i].template.Capacity == capacity).ToArray();
+                    for (int i = indices.Length - 1; i > 0; i--)
+                    {
+                        int a = indices[i], b = indices[random.Next(i + 1)];
+                        var color = orders[a].color;
+                        orders[a] = (orders[a].template, orders[b].color);
+                        orders[b] = (orders[b].template, color);
+                    }
+                }
+            }
             int copies = Mathf.CeilToInt((float)orders.Count / authored.Length);
             int layers = authored.Max(tray => tray.stackLayer) + 1;
             float bottom = authored.Min(tray => tray.transform.localPosition.y);
@@ -153,11 +168,13 @@ namespace BlockShooter
                 var tray = Instantiate(order.template, _layout.trayRoot);
                 tray.name = $"Source tray {i + 1} {order.color}";
                 tray.transform.localPosition = pose.transform.localPosition + Vector3.up * (tier * tierHeight);
+                if (tier % 2 != 0)
+                    tray.transform.localPosition += new Vector3(_layout.repeatedTierOffset.x, 0, _layout.repeatedTierOffset.y);
                 tray.transform.localRotation = pose.transform.localRotation;
                 tray.transform.localScale = pose.transform.localScale;
                 tray.levelColor = order.color;
                 tray.stackLayer = pose.stackLayer + tier * layers;
-                tray.mystery = pose.mystery;
+                tray.mystery = false; // Selected from covered trays after all footprints are initialized.
             }
             foreach (var tray in authored)
             {

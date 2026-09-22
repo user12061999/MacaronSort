@@ -403,7 +403,7 @@ MonoBehaviour:
   unlockSlotCost: 100
   shippingReward: 50
   deadlockDelay: 1.5
-  sourceLoopSpeed: 0.2
+  sourceLoopSpeed: 0.14
 --- !u!114 &1412556477
 MonoBehaviour:
   m_ObjectHideFlags: 0

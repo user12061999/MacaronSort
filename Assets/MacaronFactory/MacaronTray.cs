@@ -34,6 +34,10 @@ namespace BlockShooter
         private Renderer[] _interiorRenderers;
         private BoxCollider _collider;
         private MaterialPropertyBlock _tint;
+        private bool _blocksTable = true;
+        private MacaronLevel _mysterySettings;
+        private Tween _revealTween;
+        private Vector3 _revealRestScale;
         private readonly Vector2[] _corners = new Vector2[4];
 
         public void Initialize(MacaronFactory factory, BlockColorType color,
@@ -76,7 +80,7 @@ namespace BlockShooter
 
         public bool IsBlockedBy(MacaronTray above)
         {
-            if (!above.OnTable || !Blocks(above.Footprint, above.Layer, Footprint, Layer)) return false;
+            if (!above._blocksTable || !Blocks(above.Footprint, above.Layer, Footprint, Layer)) return false;
             return OverlapsOnAxes(_corners, above._corners) && OverlapsOnAxes(above._corners, _corners);
         }
 
@@ -102,14 +106,16 @@ namespace BlockShooter
         public void Refresh(bool accessible)
         {
             Accessible = accessible && OnTable;
+            bool reveal = Hidden && Accessible;
             if (Accessible) Hidden = false;
-            var color = Hidden ? Factory.PaperMaterial.color : Factory.TrayColor(Color);
+            var hiddenColor = _mysterySettings != null ? _mysterySettings.mysteryTrayColor : UnityEngine.Color.gray;
+            var color = Hidden ? hiddenColor : Factory.TrayColor(Color);
             if (OnTable && !Accessible)
                 color = UnityEngine.Color.Lerp(color, new UnityEngine.Color(0, 0, 0, color.a), Mathf.Clamp01(Factory.coveredTrayDarkness));
             _tint.SetColor("_BaseColor", color);
             _tint.SetColor("_Color", color);
             foreach (var renderer in tintRenderers) renderer.SetPropertyBlock(_tint, 0);
-            var lining = UnityEngine.Color.Lerp(Hidden ? Factory.PaperMaterial.color : Factory.TrayColor(Color),
+            var lining = UnityEngine.Color.Lerp(Hidden ? hiddenColor : Factory.TrayColor(Color),
                 new UnityEngine.Color(1f, .95f, .85f), .6f);
             if (OnTable && !Accessible) lining *= 1 - Mathf.Clamp01(Factory.coveredTrayDarkness);
             lining.a = 1;
@@ -136,8 +142,64 @@ namespace BlockShooter
                 Hidden ? _collider.center.z : _collider.center.z - _collider.size.z * .4f);
             Label.fontSize = Hidden ? 3.4f : 1.6f;
             Label.text = Hidden ? "?" : $"{Filled}/{Capacity}";
-            Label.color = Accessible || !OnTable ? new Color(.2f, .12f, .22f) : new Color(.45f, .4f, .43f);
-            Label.gameObject.SetActive(false);
+            Label.color = UnityEngine.Color.white;
+            Label.gameObject.SetActive(Hidden);
+            if (Hidden)
+            {
+                Label.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                Label.fontStyle = FontStyles.Bold;
+                Label.transform.localScale = Vector3.one;
+                Label.ForceMeshUpdate();
+                var glyph = Label.textBounds.size;
+                float fit = .95f * Mathf.Min(_collider.size.x / Mathf.Max(.001f, glyph.x),
+                    _collider.size.z / Mathf.Max(.001f, glyph.y));
+                Label.transform.localScale = Vector3.one * fit;
+            }
+            if (reveal && _mysterySettings != null)
+            {
+                StopRevealFeedback();
+                _revealRestScale = transform.localScale;
+                _revealTween = DOTween.Sequence().SetLink(gameObject)
+                    .Append(transform.DOScale(_revealRestScale * Mathf.Clamp(_mysterySettings.mysteryRevealScale, 1, 1.2f),
+                        Mathf.Max(.01f, _mysterySettings.mysteryRevealDuration) * .4f).SetEase(Ease.OutQuad))
+                    .Append(transform.DOScale(_revealRestScale, Mathf.Max(.01f, _mysterySettings.mysteryRevealDuration) * .6f).SetEase(Ease.OutBack));
+            }
+        }
+
+        public void SetMystery(MacaronLevel settings)
+        {
+            _mysterySettings = settings;
+            mystery = Hidden = true;
+            Refresh(false);
+        }
+
+        public void StopRevealFeedback()
+        {
+            if (_revealTween == null || !_revealTween.IsActive()) return;
+            _revealTween.Kill();
+            transform.localScale = _revealRestScale;
+        }
+
+        public bool ReleaseTableBlockIfClear(bool arrived = false)
+        {
+            if (OnTable || !_blocksTable) return false;
+            if (!arrived)
+            {
+                Vector2 min = new Vector2(float.PositiveInfinity, float.PositiveInfinity);
+                Vector2 max = new Vector2(float.NegativeInfinity, float.NegativeInfinity);
+                for (int i = 0; i < 4; i++)
+                {
+                    var corner = transform.TransformPoint(_collider.center + new Vector3(
+                        (i == 0 || i == 3 ? -.5f : .5f) * _collider.size.x, 0, (i < 2 ? -.5f : .5f) * _collider.size.z));
+                    var point = new Vector2(corner.x, corner.z);
+                    min = Vector2.Min(min, point); max = Vector2.Max(max, point);
+                }
+                // ponytail: conservative X/Z bounds delay reveal until the whole tray clears its old footprint.
+                // For tighter timing on rotated trays, use the existing SAT overlap with live corners.
+                if (Footprint.Overlaps(Rect.MinMaxRect(min.x, min.y, max.x, max.y))) return false;
+            }
+            _blocksTable = false;
+            return true;
         }
 
         public void LeaveTable()
@@ -183,7 +245,7 @@ namespace BlockShooter
                 .OnComplete(() => transform.localScale = _receiveRestScale);
         }
 
-        private void OnDisable() => StopReceiveBounce();
+        private void OnDisable() { StopReceiveBounce(); StopRevealFeedback(); }
 
         public void StopReceiveBounce()
         {

@@ -63,6 +63,16 @@ namespace BlockShooter.Editor
             serializedObject.Update();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Layout and camera", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("shuffleTrayColors"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("trayArrangementSeed"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("repeatedTierOffset"));
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Mystery trays", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryTrayRatio"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryTrayColor"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryRevealDuration"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryRevealScale"));
+            EditorGUILayout.HelpBox("Ratio applies to all trays, capped by initially covered trays. Color shuffle preserves capacity per color. Reveal waits until the covering tray clears its original footprint. Preview shows authored poses; these settings apply at runtime.", MessageType.Info);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("waitingSlotScreenGap"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraTilt"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraFieldOfView"));

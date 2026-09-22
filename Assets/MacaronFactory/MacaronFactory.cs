@@ -64,6 +64,9 @@ namespace BlockShooter
         [Min(0)] public float trayJumpHeight = .75f;
         public AnimationCurve trayJumpCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [Min(.01f)] public float trayWaitingScale = .58f;
+        [Header("Tray packing")]
+        [Min(.01f)] public float trayPackingTime = .4f;
+        [Min(1)] public float trayPackingScaleMultiplier = 1.35f;
         [Header("Tray click feedback")]
         [Min(.01f)] public float trayValidClickTime = .1f;
         [Range(.5f, 1)] public float trayValidClickScale = .92f;
@@ -194,10 +197,19 @@ namespace BlockShooter
         {
             foreach (var tray in _layout.GetTrays())
             {
-                tray.Initialize(this, tray.levelColor, tray.stackLayer, tray.mystery, tray.transform.localPosition);
+                tray.Initialize(this, tray.levelColor, tray.stackLayer, false, tray.transform.localPosition);
                 MacaronLevelVisualPolish.MarkForOutline(tray.transform);
                 _trays.Add(tray);
             }
+            var candidates = _trays.Where(tray => _trays.Any(tray.IsBlockedBy)).ToList();
+            var random = new System.Random(_layout.trayArrangementSeed);
+            for (int i = candidates.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+            }
+            int hiddenCount = Mathf.Min(candidates.Count, Mathf.RoundToInt(_trays.Count * Mathf.Clamp01(_layout.mysteryTrayRatio)));
+            for (int i = 0; i < hiddenCount; i++) candidates[i].SetMystery(_layout);
             for (int i = 0; i < 6; i++) _slotPads[i] = _layout.waitingSlots[i].GetComponent<Renderer>();
         }
 
@@ -300,6 +312,7 @@ namespace BlockShooter
                 return false;
             }
             tray.StopClickFeedback();
+            tray.StopRevealFeedback();
             feedback?.Play(MacaronFeedbackEvent.SelectTray, tray.transform.position);
             _slots[slot] = tray; // Reserve before exposing the trays underneath.
             tray.LeaveTable();
@@ -318,16 +331,34 @@ namespace BlockShooter
                 ? trayJumpCurve : AnimationCurve.Linear(0, 0, 1, 1);
             Quaternion rotation = _layout != null ? _layout.waitingSlots[slot].rotation : Quaternion.identity;
             Vector3 finalScale = Vector3.one * Mathf.Max(.01f, trayWaitingScale);
+            Vector3 start = tray.transform.position;
+            Vector3 target = SlotPosition(slot);
+            float flightY = Mathf.Max(start.y, target.y);
+            foreach (var other in _trays)
+            {
+                if (other == null || other == tray || !other.gameObject.activeInHierarchy || other.Moving || other.Shipping) continue;
+                foreach (var renderer in other.tintRenderers)
+                    if (renderer != null && renderer.enabled) flightY = Mathf.Max(flightY, renderer.bounds.max.y);
+            }
+            flightY += Mathf.Max(.1f, trayJumpHeight);
             var jump = DOTween.Sequence().SetLink(tray.gameObject);
-            jump.Join(tray.transform.DOJump(SlotPosition(slot), Mathf.Max(0, trayJumpHeight), 1, duration).SetEase(curve));
-            jump.Join(tray.transform.DORotateQuaternion(rotation, duration).SetEase(curve));
-            jump.Join(DOTween.Sequence()
+            jump.Append(tray.transform.DOMoveY(flightY, duration * .25f).SetEase(Ease.OutQuad));
+            jump.Append(tray.transform.DOMove(new Vector3(target.x, flightY, target.z), duration * .5f).SetEase(curve));
+            jump.Join(tray.transform.DORotateQuaternion(rotation, duration * .5f).SetEase(curve));
+            jump.Append(tray.transform.DOMoveY(target.y, duration * .25f).SetEase(Ease.InQuad));
+            jump.Insert(0, DOTween.Sequence()
                 .Append(tray.transform.DOScale(originalScale, duration * .25f).SetEase(Ease.OutQuad))
                 .Append(tray.transform.DOScale(finalScale, duration * .75f).SetEase(Ease.InOutQuad)));
-            yield return jump.WaitForCompletion();
+            while (jump.IsActive() && !jump.IsComplete())
+            {
+                if (tray.ReleaseTableBlockIfClear()) RefreshAccessibility();
+                yield return null;
+            }
             tray.transform.SetPositionAndRotation(SlotPosition(slot), rotation);
             tray.transform.localScale = finalScale;
             tray.Moving = false;
+            tray.ReleaseTableBlockIfClear(true);
+            RefreshAccessibility();
             feedback?.Play(MacaronFeedbackEvent.TrayArrived, tray.transform.position);
             tray.Refresh(false);
         }
@@ -396,10 +427,15 @@ namespace BlockShooter
             tray.Label.text = "PACKED!";
             yield return new WaitForSeconds(Mathf.Max(.01f, trayReceiveBounceTime));
             tray.StopReceiveBounce();
+            Vector3 lidScale = tray.Lid.localScale;
+            float packingTime = Mathf.Max(.01f, trayPackingTime);
             tray.Lid.localPosition = tray.ClosedLidPosition + Vector3.up * .65f;
+            tray.Lid.localScale = lidScale * Mathf.Max(1, trayPackingScaleMultiplier);
             tray.Lid.gameObject.SetActive(true);
-            yield return tray.Lid.DOLocalMove(tray.ClosedLidPosition, .25f).SetEase(Ease.OutCubic)
-                .SetLink(tray.gameObject).WaitForCompletion();
+            yield return DOTween.Sequence().SetLink(tray.gameObject)
+                .Append(tray.Lid.DOLocalMove(tray.ClosedLidPosition, packingTime).SetEase(Ease.InOutCubic))
+                .Join(tray.Lid.DOScale(lidScale, packingTime).SetEase(Ease.InOutCubic))
+                .WaitForCompletion();
             feedback?.Play(MacaronFeedbackEvent.TrayPacked, tray.transform.position);
             yield return DOTween.Sequence().SetLink(tray.gameObject)
                 .AppendInterval(.1f)
@@ -544,7 +580,7 @@ namespace BlockShooter
                 }
                 if (_slotPads[i] != null)
                 {
-                    _slotPads[i].sharedMaterial = i < OpenSlots ? PaperMaterial : ShadowMaterial;
+                    MacaronLevelVisualPolish.SetSlotLocked(_slotPads[i].transform, i >= OpenSlots);
                 }
             }
         }

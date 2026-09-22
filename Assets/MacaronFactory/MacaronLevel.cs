@@ -38,6 +38,19 @@ namespace BlockShooter
         [Range(1, 9)] public int colorCount = 6;
         [Min(4)] public int cakeCount = 320;
 
+        [Header("Tray difficulty")]
+        [Tooltip("Shuffle colors only between equal-capacity trays, preserving every color's cake total.")]
+        public bool shuffleTrayColors = true;
+        [Tooltip("Seed for tray colors and mystery selection. Retry keeps the same arrangement.")]
+        public int trayArrangementSeed = 1;
+        [Tooltip("Local X/Z offset of alternate repeated stack tiers. Zero keeps authored alignment.")]
+        public Vector2 repeatedTierOffset = new Vector2(.12f, .08f);
+        [Tooltip("Fraction of ALL trays to hide, capped by how many are initially covered. 0 disables mystery trays.")]
+        [Range(0, 1)] public float mysteryTrayRatio = .5f;
+        public Color mysteryTrayColor = new Color(.55f, .55f, .58f);
+        [Min(.01f)] public float mysteryRevealDuration = .35f;
+        [Range(1, 1.2f)] public float mysteryRevealScale = 1.08f;
+
         public int ResolveConveyorStage(int stage) => conveyorShape != ConveyorShape.Automatic
             ? Mathf.Clamp((int)conveyorShape, 1, 10)
             : stage <= 10 ? Mathf.Max(1, stage) : new System.Random(stage).Next(3, 11);

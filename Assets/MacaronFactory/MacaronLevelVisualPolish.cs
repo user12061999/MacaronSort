@@ -9,10 +9,10 @@ namespace BlockShooter
     internal static class MacaronLevelVisualPolish
     {
         private static readonly Color Floor = new(.72f, .68f, .62f);
-        private static readonly Color Rim = new(.48f, .20f, .07f);
-        private static readonly Color Worktop = new(1f, .88f, .65f);
-        private static readonly Color SlotRim = new(.91f, .46f, .10f);
-        private static readonly Color SlotInset = new(1f, .78f, .38f);
+        private static readonly Color Rim = new(.69f, .43f, .23f);
+        private static readonly Color Worktop = new(1f, .94f, .83f);
+        private static readonly Color SlotRim = new(.79f, .60f, .40f);
+        private static readonly Color SlotInset = new(.98f, .90f, .77f);
         private static readonly Shader ToonShader = Shader.Find("Toon Shaders Pro/URP/Toon");
         private const string OutlineLayerName = "Macaron Outline";
 
@@ -38,6 +38,22 @@ namespace BlockShooter
             int layer = LayerMask.NameToLayer(OutlineLayerName);
             if (layer < 0 || root == null) return;
             foreach (var transform in root.GetComponentsInChildren<Transform>(true)) transform.gameObject.layer = layer;
+        }
+
+        public static void SetSlotLocked(Transform slot, bool locked)
+        {
+            var renderer = slot.GetComponent<Renderer>();
+            var tint = new MaterialPropertyBlock();
+            var color = locked ? new Color(.53f, .48f, .42f) : SlotRim;
+            tint.SetColor("_BaseColor", color);
+            tint.SetColor("_Color", color);
+            renderer.SetPropertyBlock(tint);
+            var inset = slot.Find("Polished inset");
+            if (inset == null) return;
+            color = locked ? new Color(.66f, .61f, .54f) : SlotInset;
+            tint.SetColor("_BaseColor", color);
+            tint.SetColor("_Color", color);
+            inset.GetComponent<Renderer>().SetPropertyBlock(tint);
         }
 
         private static void ConfigureOutlines(MacaronLevel level)
@@ -78,7 +94,7 @@ namespace BlockShooter
             var inset = new GameObject("Polished inset", typeof(MeshFilter), typeof(MeshRenderer)).transform;
             inset.SetParent(slot, false);
             inset.localPosition = Vector3.up * .53f;
-            inset.localScale = new Vector3(.78f, .25f, .72f);
+            inset.localScale = new Vector3(.88f, .12f, .84f);
             inset.GetComponent<MeshFilter>().sharedMesh = source.sharedMesh;
             var material = new Material(renderer.material);
             ApplyToon(material, SlotInset, .42f);
@@ -93,8 +109,8 @@ namespace BlockShooter
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
             if (!material.HasProperty("_LightTint")) return;
             material.SetColor("_LightTint", Color.white);
-            material.SetColor("_MiddleTint", Color.gray * .78f);
-            material.SetColor("_ShadowTint", Color.black);
+            material.SetColor("_MiddleTint", new Color(.86f, .80f, .72f));
+            material.SetColor("_ShadowTint", new Color(.48f, .36f, .27f));
             material.SetVector("_ShadowThresholds", new Vector4(.08f, .14f, 0, 0));
             material.SetVector("_DiffuseThresholds", new Vector4(-.03f, .03f, 0, 0));
             material.SetColor("_RimColor", new Color(1f, .88f, .65f));
