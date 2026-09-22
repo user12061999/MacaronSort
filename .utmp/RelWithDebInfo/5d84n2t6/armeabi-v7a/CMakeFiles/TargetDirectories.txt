@@ -1,8 +1,0 @@
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/CMakeFiles/edit_cache.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/CMakeFiles/rebuild_cache.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/GameActivity/CMakeFiles/game.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/GameActivity/CMakeFiles/edit_cache.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/GameActivity/CMakeFiles/rebuild_cache.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/FramePacing/CMakeFiles/swappywrapper.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/FramePacing/CMakeFiles/edit_cache.dir
-D:/Project_Unity/MacaronSort/.utmp/RelWithDebInfo/5d84n2t6/armeabi-v7a/FramePacing/CMakeFiles/rebuild_cache.dir
