@@ -256,13 +256,13 @@ PlayerSettings:
   clonedFromGUID: 8d684b42120934d2eb73fb8feb803ecf
   templatePackageId: 
   templateDefaultScene: Assets/Scenes/SampleScene.unity
-  useCustomMainManifest: 0
+  useCustomMainManifest: 1
   useCustomLauncherManifest: 0
-  useCustomMainGradleTemplate: 0
+  useCustomMainGradleTemplate: 1
   useCustomLauncherGradleManifest: 0
   useCustomBaseGradleTemplate: 0
-  useCustomGradlePropertiesTemplate: 0
-  useCustomGradleSettingsTemplate: 0
+  useCustomGradlePropertiesTemplate: 1
+  useCustomGradleSettingsTemplate: 1
   useCustomProguardFile: 0
   AndroidTargetArchitectures: 11
   AndroidSplashScreenScale: 0
@@ -864,7 +864,7 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   scriptingDefineSymbols:
-    Android: NEWTONSOFT;VS_ATT;UNITY_POST_PROCESSING_STACK_V2;QUICKOUTLINE_INSTALLED;UNITY_PIPELINE_URP
+    Android: NEWTONSOFT;VS_ATT;UNITY_POST_PROCESSING_STACK_V2;QUICKOUTLINE_INSTALLED;UNITY_PIPELINE_URP;MACARON_MAX_ADJUST
     CloudRendering: UNITY_POST_PROCESSING_STACK_V2
     EmbeddedLinux: UNITY_POST_PROCESSING_STACK_V2
     GameCoreScarlett: UNITY_POST_PROCESSING_STACK_V2
