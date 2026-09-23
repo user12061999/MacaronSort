@@ -58,7 +58,7 @@ namespace BlockShooter
             }
         }
 
-        public void Play(MacaronFeedbackEvent trigger, Vector3 position)
+        public void Play(MacaronFeedbackEvent trigger, Vector3 position, bool soundOnly = false)
         {
             if (config == null || !_cues.TryGetValue(trigger, out var cue)) return;
             if (_last.TryGetValue(trigger, out var last) && Time.unscaledTime - last < Mathf.Max(.01f, cue.cooldown)) return;
@@ -73,7 +73,7 @@ namespace BlockShooter
                         voice.Play();
                         break;
                     }
-            if (!config.effectsEnabled) return;
+            if (soundOnly || !config.effectsEnabled) return;
             foreach (var effect in _effects)
                 if (effect.cue == cue && !effect.active)
                 {

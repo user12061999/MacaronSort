@@ -82,6 +82,10 @@ namespace BlockShooter
         [Min(0)] public int stageOverride;
         [Min(1)] public int unlockSlotCost = 100;
         [Min(0)] public int shippingReward = 50;
+        [Header("Packing combo")]
+        [Min(.1f)] public float comboWindow = 5f;
+        [Min(0)] public int comboCoinStep = 5;
+        [Min(0)] public int comboMaxBonus = 20;
         [Min(.1f)] public float deadlockDelay = 1.5f;
 
         public int Stage { get; private set; }
@@ -105,6 +109,11 @@ namespace BlockShooter
         private readonly TextMeshProUGUI[] _slotLabels = new TextMeshProUGUI[6];
         private readonly Renderer[] _slotPads = new Renderer[6];
         private TextMeshProUGUI _status, _coins, _progress, _stageText;
+        private TextMeshProUGUI _comboText;
+        private UnityEngine.UI.Slider _comboTimer;
+        private int _comboCount, _warningSlot = -1;
+        private float _comboUntil;
+        private MaterialPropertyBlock _warningTint;
         private RectTransform _overlay;
         private RectTransform _settingOverlay;
         private RectTransform _hudRoot;
@@ -242,6 +251,7 @@ namespace BlockShooter
         private void Update()
         {
             if (!_ready || !GameManager.Instance.IsPlaying) return;
+            UpdatePackingFeedback();
             HandleClickParticle();
             Conveyor.TickFinishBoost(!_trays.Any(tray => tray.OnTable));
             Conveyor.Advance(Time.deltaTime * _speedMultiplier);
@@ -276,7 +286,8 @@ namespace BlockShooter
             else
             {
                 _deadlockTime = 0;
-                if (Time.time >= _noticeUntil && _status != null) _status.text = "";
+                if (Time.time >= _noticeUntil && _status != null)
+                    _status.text = _warningSlot >= 0 ? "ONLY 1 SLOT LEFT!" : "";
             }
         }
 
@@ -315,6 +326,7 @@ namespace BlockShooter
             tray.StopRevealFeedback();
             feedback?.Play(MacaronFeedbackEvent.SelectTray, tray.transform.position);
             _slots[slot] = tray; // Reserve before exposing the trays underneath.
+            UpdatePackingFeedback();
             tray.LeaveTable();
             RefreshAccessibility();
             StartCoroutine(MoveToSlot(tray, slot));
@@ -437,6 +449,7 @@ namespace BlockShooter
                 .Join(tray.Lid.DOScale(lidScale, packingTime).SetEase(Ease.InOutCubic))
                 .WaitForCompletion();
             feedback?.Play(MacaronFeedbackEvent.TrayPacked, tray.transform.position);
+            RegisterPackedTray();
             yield return DOTween.Sequence().SetLink(tray.gameObject)
                 .AppendInterval(.1f)
                 .Append(tray.transform.DOMove(tray.transform.position + Vector3.right * 7f, .45f).SetEase(Ease.InQuad))
@@ -530,6 +543,7 @@ namespace BlockShooter
         {
             if (!GameManager.Instance.IsPlaying) return;
             GameManager.Instance.SetState(win ? GameState.Win : GameState.Fail);
+            ClearPackingFeedback();
             feedback?.Play(win ? MacaronFeedbackEvent.Win : MacaronFeedbackEvent.Lose, _layout.counterAnchor.position);
             if (win)
             {
@@ -563,6 +577,126 @@ namespace BlockShooter
         private Vector3 SlotPosition(int i) => _layout != null
             ? _layout.waitingSlots[i].position + Vector3.up * .075f
             : new Vector3((i - 2.5f) * .96f, .08f, -.85f);
+
+        private int AdvanceCombo(float now)
+        {
+            _comboCount = _comboCount > 0 && now <= _comboUntil ? _comboCount + 1 : 1;
+            _comboUntil = now + Mathf.Max(.1f, comboWindow);
+            return (int)System.Math.Min((long)(_comboCount - 1) * Mathf.Max(0, comboCoinStep), Mathf.Max(0, comboMaxBonus));
+        }
+
+#if UNITY_EDITOR
+        [UnityEditor.MenuItem("Macaron Factory/Checks/Combo and last waiting slot")]
+        public static void CheckPackingFeedback()
+        {
+            if (Application.isPlaying) throw new System.InvalidOperationException("Run this check outside Play Mode.");
+            var root = new GameObject("Packing feedback check");
+            root.SetActive(false);
+            try
+            {
+                var factory = root.AddComponent<MacaronFactory>();
+                if (factory.AdvanceCombo(0) != 0 || factory.AdvanceCombo(5) != 5 ||
+                    factory.AdvanceCombo(6) != 10 || factory.AdvanceCombo(12) != 0)
+                    throw new System.Exception("Combo window, reward progression or expiry failed.");
+                for (int i = 0; i < 10; i++)
+                    if (factory.AdvanceCombo(12) > factory.comboMaxBonus)
+                        throw new System.Exception("Combo reward exceeded cap.");
+                var tray = root.AddComponent<MacaronTray>();
+                if (factory.LastFreeSlot() != -1) throw new System.Exception("Empty board warns too early.");
+                for (int i = 0; i < 3; i++) factory._slots[i] = tray;
+                if (factory.LastFreeSlot() != 3) throw new System.Exception("Last open slot not found.");
+                factory._slots[3] = tray;
+                if (factory.LastFreeSlot() != -1) throw new System.Exception("Full board warns on locked slot.");
+                factory.OpenSlots = 5;
+                if (factory.LastFreeSlot() != 4) throw new System.Exception("Unlocked slot not counted.");
+                factory.OpenSlots = 6;
+                if (factory.LastFreeSlot() != -1) throw new System.Exception("Two free slots still warn.");
+                var timer = new GameObject("Timer check", typeof(RectTransform), typeof(UnityEngine.UI.Slider));
+                timer.transform.SetParent(root.transform);
+                factory._comboTimer = timer.GetComponent<UnityEngine.UI.Slider>();
+                factory._comboUntil = Time.time + factory.comboWindow * .5f;
+                factory.UpdatePackingFeedback();
+                if (!Mathf.Approximately(factory._comboTimer.value, .5f) || !timer.activeSelf)
+                    throw new System.Exception("Combo timer does not show remaining time.");
+                factory._comboUntil = Time.time - 1;
+                factory.UpdatePackingFeedback();
+                if (timer.activeSelf || factory._comboTimer.value != 0)
+                    throw new System.Exception("Expired combo timer remains visible.");
+                Debug.Log("PASS: Combo expiry, boundary, reward cap and open-slot warning counts.");
+            }
+            finally { DestroyImmediate(root); }
+        }
+#endif
+
+        private void RegisterPackedTray()
+        {
+            if (!GameManager.Instance.IsPlaying) return;
+            int bonus = AdvanceCombo(Time.time);
+            if (_comboTimer != null) { _comboTimer.gameObject.SetActive(true); _comboTimer.value = 1; }
+            if (bonus > 0) SaveManager.Coins += bonus;
+            if (_comboText != null)
+            {
+                _comboText.text = _comboCount < 2 ? "PACKED!" : $"COMBO x{_comboCount}  +{bonus} COINS";
+                _comboText.transform.DOKill();
+                _comboText.transform.localScale = Vector3.one;
+                _comboText.transform.DOPunchScale(Vector3.one * .18f, .3f, 1).SetLink(_comboText.gameObject);
+            }
+            UpdateHud();
+        }
+
+        private int LastFreeSlot()
+        {
+            int result = -1;
+            for (int i = 0; i < OpenSlots; i++)
+                if (_slots[i] == null)
+                {
+                    if (result >= 0) return -1;
+                    result = i;
+                }
+            return result;
+        }
+
+        private void UpdatePackingFeedback()
+        {
+            if (_comboTimer != null)
+            {
+                _comboTimer.value = Mathf.Clamp01((_comboUntil - Time.time) / Mathf.Max(.1f, comboWindow));
+                _comboTimer.gameObject.SetActive(_comboCount > 0 && Time.time <= _comboUntil);
+            }
+            if (_comboCount > 0 && Time.time > _comboUntil)
+            {
+                _comboCount = 0;
+                if (_comboText != null) _comboText.text = "";
+            }
+            int slot = _remaining > 0 ? LastFreeSlot() : -1;
+            if (slot != _warningSlot)
+            {
+                if (_warningSlot >= 0 && _slotPads[_warningSlot] != null)
+                    MacaronLevelVisualPolish.SetSlotLocked(_slotPads[_warningSlot].transform, false);
+                bool enteringWarning = _warningSlot < 0 && slot >= 0;
+                _warningSlot = slot;
+                if (enteringWarning) feedback?.Play(MacaronFeedbackEvent.InvalidTray, SlotPosition(slot), true);
+            }
+            if (slot < 0 || _slotPads[slot] == null) return;
+            Color color = Color.Lerp(new Color(.79f, .60f, .40f), new Color(1f, .28f, .08f),
+                .35f + .3f * (1f + Mathf.Sin(Time.time * 5f)));
+            _warningTint ??= new MaterialPropertyBlock();
+            _slotPads[slot].GetPropertyBlock(_warningTint);
+            _warningTint.SetColor("_BaseColor", color);
+            _warningTint.SetColor("_Color", color);
+            _slotPads[slot].SetPropertyBlock(_warningTint);
+        }
+
+        private void ClearPackingFeedback()
+        {
+            _comboCount = 0;
+            if (_comboTimer != null) _comboTimer.gameObject.SetActive(false);
+            if (_comboText != null) { _comboText.transform.DOKill(); _comboText.text = ""; }
+            if (_warningSlot >= 0 && _slotPads[_warningSlot] != null)
+                MacaronLevelVisualPolish.SetSlotLocked(_slotPads[_warningSlot].transform, false);
+            _warningSlot = -1;
+            if (_status != null) _status.text = "";
+        }
 
         private void UpdateHud()
         {
@@ -857,9 +991,33 @@ namespace BlockShooter
             _progress.fontSizeMax = 22;
 
             // Floating Status Line (Placed higher to avoid conveyor overlap, empty when idle)
-            _status = Text(canvas.transform, "", new Vector2(.5f, .912f), new Vector2(620, 40), 20);
+            _status = Text(canvas.transform, "", new Vector2(.5f, .884f), new Vector2(620, 40), 20);
             _status.fontStyle = FontStyles.Bold;
             _status.color = new Color(.35f, .20f, .28f);
+            _comboText = Text(canvas.transform, "", new Vector2(.5f, .926f), new Vector2(620, 48), 32);
+            _comboText.fontStyle = FontStyles.Bold;
+            _comboText.color = new Color(.36f, .12f, .04f);
+            _comboText.raycastTarget = false;
+            var timer = Panel(canvas.transform, new Vector2(.5f, .904f), new Vector2(260, 10),
+                hudButtonSprite, new Color(.36f, .24f, .16f));
+            timer.name = "Combo time remaining";
+            timer.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+            var fill = Panel(timer.transform, new Vector2(.5f, .5f), Vector2.zero,
+                hudButtonSprite, new Color(1f, .72f, .12f));
+            fill.name = "Fill";
+            var fillRect = (RectTransform)fill.transform;
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
+            fill.GetComponent<UnityEngine.UI.Image>().raycastTarget = false;
+            _comboTimer = timer.AddComponent<UnityEngine.UI.Slider>();
+            _comboTimer.fillRect = fillRect;
+            _comboTimer.interactable = false;
+            _comboTimer.transition = UnityEngine.UI.Selectable.Transition.None;
+            _comboTimer.navigation = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.None };
+            _comboTimer.minValue = 0;
+            _comboTimer.maxValue = 1;
+            timer.SetActive(false);
 
             // Floating slot buttons over 3D slots
             var cam = Camera.main;
