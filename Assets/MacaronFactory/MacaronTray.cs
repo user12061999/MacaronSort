@@ -75,6 +75,15 @@ namespace BlockShooter
 
         public Transform GetPocket(int index) => pockets[index];
 
+        public void RestoreProgress(int filled, bool hidden)
+        {
+            Filled = filled;
+            Reserved = 0;
+            Hidden = hidden;
+            Moving = false;
+            Refresh(false);
+        }
+
         public static bool Blocks(Rect above, int aboveLayer, Rect below, int belowLayer)
             => aboveLayer > belowLayer && above.Overlaps(below);
 

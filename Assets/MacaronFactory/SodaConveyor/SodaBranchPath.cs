@@ -25,6 +25,30 @@ namespace BlockShooter.SodaConveyor
 
         readonly List<Row> _rows = new();
 
+        [System.Serializable]
+        public struct SavedRow { public BlockColorType color; public float t; }
+
+        public SavedRow[] CaptureRows()
+        {
+            return _rows.ConvertAll(row => new SavedRow { color = row.Color, t = row.CurrentT }).ToArray();
+        }
+
+        public void RestoreRows(SavedRow[] saved)
+        {
+            foreach (var row in _rows)
+                if (row.Items != null)
+                    foreach (var item in row.Items)
+                        if (item != null) { item.gameObject.SetActive(false); Destroy(item.gameObject); }
+            _rows.Clear();
+            for (int i = 0; i < saved.Length; i++)
+            {
+                var row = new Row { Color = saved[i].color, CurrentT = saved[i].t,
+                    RowIndex = i, RowSpacing = _track.RowSpacing };
+                PlaceRow(ref row);
+                _rows.Add(row);
+            }
+        }
+
         public bool IsFullyMerged => _rows.Count == 0;
         public bool HasMatchingColor(System.Func<BlockColorType, bool> needsColor)
         {

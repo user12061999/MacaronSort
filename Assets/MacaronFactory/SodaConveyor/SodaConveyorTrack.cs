@@ -85,6 +85,74 @@ namespace BlockShooter.SodaConveyor
             speed = _cruiseSpeed;
         }
         public System.Func<BlockColorType, Transform, ConveyorBlock3D> SpawnItem;
+
+        [System.Serializable]
+        public struct SavedSlot { public float t; public BlockColorType color; public int lanes; }
+        [System.Serializable]
+        public class SavedBranch { public SodaBranchPath.SavedRow[] rows; }
+        [System.Serializable]
+        public class SavedState { public SavedSlot[] slots; public SavedBranch[] branches; }
+
+        public SavedState CaptureState()
+        {
+            var saved = new SavedState { slots = new SavedSlot[_slots.Count], branches = new SavedBranch[_branchPaths.Count] };
+            for (int i = 0; i < _slots.Count; i++) saved.slots[i].t = _slots[i].RowT;
+            foreach (var entry in _groups)
+            {
+                var group = entry.Group;
+                for (int row = 0; row < group.RowCount; row++)
+                {
+                    float t = Mathf.Repeat(entry.HeadT + (group.RowCount - 1 - row) * group.rowSpacing / _trackWorldLength, 1f);
+                    int slot = System.Array.FindIndex(saved.slots, s => Mathf.Abs(Mathf.DeltaAngle(s.t * 360, t * 360)) < .01f);
+                    if (slot < 0) throw new System.InvalidOperationException("Conveyor row has no save slot.");
+                    saved.slots[slot].color = group.colorType;
+                    for (int lane = 0; lane < LaneCount; lane++)
+                    {
+                        var item = group.GetItem(row, lane);
+                        if (item != null && !item.IsDestroyed) saved.slots[slot].lanes |= 1 << lane;
+                    }
+                }
+            }
+            for (int i = 0; i < _branchPaths.Count; i++)
+                saved.branches[i] = new SavedBranch { rows = _branchPaths[i].CaptureRows() };
+            return saved;
+        }
+
+        // Restore after building the same stage's empty loop and branch geometry.
+        public void RestoreState(SavedState saved)
+        {
+            foreach (var item in _items) if (item != null) item.OnDestroyed -= Remove;
+            _items.Clear();
+            foreach (var entry in _groups)
+            {
+                entry.Group.OnGroupCleared -= HandleGroupCleared;
+                entry.Group.gameObject.SetActive(false);
+                Destroy(entry.Group.gameObject);
+            }
+            _groups.Clear();
+            _slots.Clear();
+            foreach (var slot in saved.slots) _slots.Add(new ConveyorSlot { RowT = slot.t });
+            for (int i = 0; i < saved.slots.Length; i++)
+            {
+                var slot = saved.slots[i];
+                if (slot.lanes == 0) continue;
+                var group = CreateMergeGroup(slot.color);
+                InsertGroupAt(group, slot.t);
+                for (int lane = 0; lane < LaneCount; lane++)
+                {
+                    if ((slot.lanes & (1 << lane)) == 0) continue;
+                    var item = SpawnItem(slot.color, group.transform);
+                    item.SetGroupIndex(0, lane);
+                    item.Phase = ConveyorItemPhase.OnLoop;
+                    item.JumpProgress = 1;
+                    group.RegisterMergedItem(item, lane);
+                    RegisterItemToSlot(i, lane, item);
+                    Add(item);
+                }
+                ForceUpdateGroupPosition(group);
+            }
+            for (int i = 0; i < _branchPaths.Count; i++) _branchPaths[i].RestoreRows(saved.branches[i].rows);
+        }
         public void Populate(int preset, float loopSpeed, float contentScale, int quantum)
         {
             SetTrackShape(preset, 1f);

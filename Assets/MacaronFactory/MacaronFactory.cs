@@ -79,6 +79,7 @@ namespace BlockShooter
         [Tooltip("Black tint applied only while another tray blocks this tray. 0 keeps the original color.")]
         [Range(0, 1)] public float coveredTrayDarkness = .18f;
         [Header("Balance")]
+        [Tooltip("0 uses normal player progress. A positive value starts a separate saved test progression at that stage.")]
         [Min(0)] public int stageOverride;
         [Min(1)] public int unlockSlotCost = 100;
         [Min(0)] public int shippingReward = 50;
@@ -118,7 +119,7 @@ namespace BlockShooter
         private float _comboUntil;
         private MaterialPropertyBlock _warningTint;
         private RectTransform _overlay;
-        private RectTransform _settingOverlay;
+
         [SerializeField] private RectTransform _hudRoot;
         private Transform _remainingBadge;
         private int _remaining, _transfers, _shipped;
@@ -177,7 +178,7 @@ namespace BlockShooter
 
         private void Start()
         {
-            Stage = _requestedStage > 0 ? _requestedStage : stageOverride > 0 ? stageOverride : Mathf.Max(1, PlayerPrefs.GetInt("Macaron.Stage", 1));
+            Stage = _requestedStage > 0 ? _requestedStage : Mathf.Max(1, PlayerPrefs.GetInt(StageSaveKey, stageOverride > 0 ? stageOverride : 1));
             _requestedStage = 0;
             if (conveyorSource == null || conveyorSource.conveyorBlockPrefab == null || GameManager.Instance.config == null ||
                 levels == null || levels.Length == 0 || levels.Any(level => level == null) ||
@@ -200,9 +201,12 @@ namespace BlockShooter
             BuildTrays();
             BuildPuzzleSupply();
             BuildHud();
+            InitializeRunSave();
             RefreshAccessibility();
             GameManager.Instance.SetState(GameState.Playing);
             _ready = true;
+            ResumePacking();
+            SaveRun();
             UpdateHud();
             if (!string.IsNullOrEmpty(PuzzleHint))
             {
@@ -339,6 +343,7 @@ namespace BlockShooter
             tray.LeaveTable();
             RefreshAccessibility();
             StartCoroutine(MoveToSlot(tray, slot));
+            _saveDirty = true;
             return true;
         }
 
@@ -418,6 +423,7 @@ namespace BlockShooter
             var target = tray.GetPocket(pocket);
             var visual = block.transform.Find("Macaron");
             visual.SetParent(target, true);
+            _saveDirty = true;
             float exitDuration = macaronExitTime > 0 ? Mathf.Max(.01f, macaronExitTime)
                 : Mathf.Max(.08f, Vector3.Distance(visual.position, target.position) / Mathf.Max(.1f, macaronExitSpeed));
             var curve = macaronExitCurve != null && macaronExitCurve.length >= 2
@@ -458,7 +464,8 @@ namespace BlockShooter
                 .Join(tray.Lid.DOScale(lidScale, packingTime).SetEase(Ease.InOutCubic))
                 .WaitForCompletion();
             feedback?.Play(MacaronFeedbackEvent.TrayPacked, tray.transform.position);
-            RegisterPackedTray();
+            if (_rewardedTrays.Add(tray)) RegisterPackedTray();
+            SaveRun();
             yield return DOTween.Sequence().SetLink(tray.gameObject)
                 .AppendInterval(.1f)
                 .Append(tray.transform.DOMove(tray.transform.position + Vector3.right * 7f, .45f).SetEase(Ease.InQuad))
@@ -468,6 +475,7 @@ namespace BlockShooter
             if (slot >= 0) _slots[slot] = null;
             _shipped++;
             tray.gameObject.SetActive(false);
+            _saveDirty = true;
             UpdateHud();
             CheckCompletion();
         }
@@ -537,6 +545,7 @@ namespace BlockShooter
             SaveManager.Coins -= unlockSlotCost;
             feedback?.Play(MacaronFeedbackEvent.UnlockSlot, SlotPosition(OpenSlots));
             OpenSlots++;
+            SaveRun();
             _deadlockTime = 0;
             UpdateHud();
             return true;
@@ -552,12 +561,13 @@ namespace BlockShooter
         {
             if (!GameManager.Instance.IsPlaying) return;
             GameManager.Instance.SetState(win ? GameState.Win : GameState.Fail);
+            DiscardRun();
             ClearPackingFeedback();
             feedback?.Play(win ? MacaronFeedbackEvent.Win : MacaronFeedbackEvent.Lose, _layout.counterAnchor.position);
             if (win)
             {
                 SaveManager.Coins += shippingReward;
-                if (stageOverride == 0) PlayerPrefs.SetInt("Macaron.Stage", Stage + 1);
+                PlayerPrefs.SetInt(StageSaveKey, Stage + 1);
                 PlayerPrefs.Save();
             }
             StartCoroutine(ShowFinishOverlay(win));
@@ -578,6 +588,10 @@ namespace BlockShooter
 
         private void Reload()
         {
+            DiscardRun();
+            _ready = false;
+            PlayerPrefs.SetInt(StageSaveKey, Stage);
+            PlayerPrefs.Save();
             _requestedStage = Stage;
             Time.timeScale = 1;
             SceneManager.LoadScene(SceneManager.GetActiveScene().path);
@@ -949,6 +963,8 @@ namespace BlockShooter
 
         private void BuildHud()
         {
+            foreach (var popup in new[] { settingsPopup, winPopup, losePopup })
+                if (popup != null) popup.gameObject.SetActive(false);
             if (_hudRoot != null)
             {
                 _settingsButton.onClick.AddListener(OpenSettings);
@@ -1066,126 +1082,9 @@ namespace BlockShooter
             PositionHudMarkers();
         }
 
-        public void OpenSettings()
-        {
-            if (_settingOverlay != null) return;
-            if (GameManager.Instance.State == GameState.Win || GameManager.Instance.State == GameState.Fail) return;
-
-            GameManager.Instance.SetState(GameState.Paused);
-            Time.timeScale = 0f;
-
-            var canvas = GetComponentInChildren<Canvas>();
-            if (canvas == null) return;
-
-            var overlayGo = new GameObject("Settings Overlay", typeof(RectTransform), typeof(Image));
-            overlayGo.transform.SetParent(canvas.transform, false);
-            _settingOverlay = (RectTransform)overlayGo.transform;
-            _settingOverlay.anchorMin = Vector2.zero;
-            _settingOverlay.anchorMax = Vector2.one;
-            _settingOverlay.offsetMin = _settingOverlay.offsetMax = Vector2.zero;
-            overlayGo.GetComponent<Image>().color = new Color(.08f, .1f, .15f, .78f);
-
-            var panel = new GameObject("Settings Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(_settingOverlay, false);
-            var panelRect = (RectTransform)panel.transform;
-            panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
-            panelRect.sizeDelta = new Vector2(560, 620);
-            var panelImg = panel.GetComponent<Image>();
-            panelImg.sprite = hudPanelSprite;
-            panelImg.type = Image.Type.Sliced;
-            panelImg.pixelsPerUnitMultiplier = 3;
-
-            // Title
-            var title = Text(panel.transform, "SETTINGS", new Vector2(.5f, .87f), new Vector2(400, 60), 40);
-            title.fontStyle = FontStyles.Bold;
-            title.color = new Color(.12f, .22f, .3f);
-
-            // Close Button 'X'
-            IconButton(panel.transform, hudCloseIcon, new Vector2(.88f, .88f), new Vector2(46, 46), CloseSettings, "✕");
-
-            // Sound Button
-            bool soundOn = PlayerPrefs.GetInt("SoundButton", 0) == 0;
-            var soundBtn = StyledButton(panel.transform, soundOn ? "SOUND: ON" : "SOUND: OFF", new Vector2(.5f, .70f), new Vector2(360, 64), null,
-                icon: soundOn ? hudSoundOnIcon : hudSoundOffIcon);
-            var soundText = soundBtn.GetComponentInChildren<TextMeshProUGUI>();
-            var soundIconImg = soundBtn.transform.Find("Icon")?.GetComponent<Image>();
-            soundBtn.onClick.AddListener(() =>
-            {
-                int cur = PlayerPrefs.GetInt("SoundButton", 0);
-                int next = cur == 0 ? 1 : 0;
-                PlayerPrefs.SetInt("SoundButton", next);
-                PlayerPrefs.Save();
-                AudioListener.volume = next == 0 ? 1f : 0f;
-                if (EKStudio.Audio.AudioController.Instance != null)
-                    EKStudio.Audio.AudioController.Instance.IsMasterMuted = (next != 0);
-                bool isOn = next == 0;
-                if (soundText != null) soundText.text = isOn ? "SOUND: ON" : "SOUND: OFF";
-                if (soundIconImg != null) soundIconImg.sprite = isOn ? hudSoundOnIcon : hudSoundOffIcon;
-            });
-
-            // Haptic Button
-            bool hapticOn = PlayerPrefs.GetInt("HapticButton", 0) == 0;
-            var hapticBtn = StyledButton(panel.transform, hapticOn ? "HAPTIC: ON" : "HAPTIC: OFF", new Vector2(.5f, .56f), new Vector2(360, 64), null,
-                icon: hudHapticIcon);
-            var hapticText = hapticBtn.GetComponentInChildren<TextMeshProUGUI>();
-            hapticBtn.onClick.AddListener(() =>
-            {
-                int cur = PlayerPrefs.GetInt("HapticButton", 0);
-                int next = cur == 0 ? 1 : 0;
-                PlayerPrefs.SetInt("HapticButton", next);
-                PlayerPrefs.SetInt("IsHapticOpen", next == 0 ? 1 : 0);
-                PlayerPrefs.Save();
-                bool isOn = next == 0;
-                if (hapticText != null) hapticText.text = isOn ? "HAPTIC: ON" : "HAPTIC: OFF";
-            });
-
-            // Retry Button (Requested: Retry placed in Settings Popup)
-            StyledButton(panel.transform, "RETRY STAGE", new Vector2(.5f, .42f), new Vector2(360, 66), () =>
-            {
-                Time.timeScale = 1f;
-                Reload();
-            }, icon: hudRetryIcon);
-
-            StyledButton(panel.transform, "NEXT LEVEL", new Vector2(.5f, .28f), new Vector2(360, 66), () =>
-            {
-                Stage++;
-                Reload();
-            });
-
-            // Resume Button
-            var resumeBtn = StyledButton(panel.transform, "RESUME", new Vector2(.5f, .14f), new Vector2(360, 68), CloseSettings,
-                customSprite: hudGreenButtonSprite, customPressed: hudGreenButtonPressedSprite);
-            var resumeText = resumeBtn.GetComponentInChildren<TextMeshProUGUI>();
-            if (resumeText != null)
-            {
-                resumeText.color = Color.white;
-                resumeText.fontStyle = FontStyles.Bold;
-                resumeText.fontSize = 28;
-            }
-
-            // Animate In
-            panel.transform.localScale = Vector3.zero;
-            panel.transform.DOScale(Vector3.one, 0.25f).SetEase(Ease.OutBack).SetUpdate(true);
-        }
-
-        public void CloseSettings()
-        {
-            if (_settingOverlay == null) return;
-            var panel = _settingOverlay.GetChild(0);
-            panel.DOScale(Vector3.zero, 0.18f).SetEase(Ease.InQuad).SetUpdate(true).OnComplete(() =>
-            {
-                if (_settingOverlay != null)
-                {
-                    Destroy(_settingOverlay.gameObject);
-                    _settingOverlay = null;
-                }
-                Time.timeScale = 1f;
-                GameManager.Instance.SetState(GameState.Playing);
-            });
-        }
-
         private void LateUpdate()
         {
+            if (_ready && Time.realtimeSinceStartup - _lastAutosave >= (_saveDirty ? .5f : 3f)) SaveRun();
             if (_comboBackplate != null) _comboBackplate.enabled = !string.IsNullOrEmpty(_comboText.text);
             if (_statusBackplate != null) _statusBackplate.enabled = !string.IsNullOrEmpty(_status.text);
             if (_hudRoot != null) PositionHudMarkers();
@@ -1216,99 +1115,6 @@ namespace BlockShooter
             }
         }
 
-        private void ShowOverlay(string title, string message, string button, UnityEngine.Events.UnityAction action, bool isWin = false)
-        {
-            var canvas = GetComponentInChildren<Canvas>();
-            if (canvas == null) return;
-            if (_overlay != null) Destroy(_overlay.gameObject);
-
-            var go = new GameObject("Result Overlay", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(canvas.transform, false);
-            _overlay = (RectTransform)go.transform;
-            _overlay.anchorMin = Vector2.zero;
-            _overlay.anchorMax = Vector2.one;
-            _overlay.offsetMin = _overlay.offsetMax = Vector2.zero;
-            go.GetComponent<Image>().color = new Color(.08f, .1f, .15f, .78f);
-
-            var panel = new GameObject("Result Panel", typeof(RectTransform), typeof(Image));
-            panel.transform.SetParent(go.transform, false);
-            var panelRect = (RectTransform)panel.transform;
-            panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
-            panelRect.sizeDelta = new Vector2(580, 560);
-            var panelImage = panel.GetComponent<Image>();
-            panelImage.sprite = hudPanelSprite;
-            panelImage.type = Image.Type.Sliced;
-            panelImage.pixelsPerUnitMultiplier = 3;
-
-            // Header
-            var titleText = Text(panel.transform, title, new Vector2(.5f, .84f), new Vector2(520, 70), 42);
-            titleText.fontStyle = FontStyles.Bold;
-            titleText.color = isWin ? new Color(.1f, .45f, .25f) : new Color(.7f, .15f, .2f);
-
-            // Message description
-            var msgText = Text(panel.transform, message, new Vector2(.5f, .62f), new Vector2(520, 110), 26);
-            msgText.color = new Color(.3f, .22f, .28f);
-
-            if (isWin)
-            {
-                // Reward Badge: Coin Icon + Reward text
-                var rewardPill = new GameObject("Reward Pill", typeof(RectTransform), typeof(Image));
-                rewardPill.transform.SetParent(panel.transform, false);
-                var pillRect = (RectTransform)rewardPill.transform;
-                pillRect.anchorMin = pillRect.anchorMax = new Vector2(.5f, .42f);
-                pillRect.sizeDelta = new Vector2(260, 56);
-                var pillImg = rewardPill.GetComponent<Image>();
-                pillImg.sprite = hudButtonSprite;
-                pillImg.type = Image.Type.Sliced;
-                pillImg.pixelsPerUnitMultiplier = 3;
-
-                if (hudCoinIcon != null)
-                {
-                    var cGo = new GameObject("Coin Icon", typeof(RectTransform), typeof(Image));
-                    cGo.transform.SetParent(rewardPill.transform, false);
-                    var cRect = (RectTransform)cGo.transform;
-                    cRect.anchorMin = cRect.anchorMax = new Vector2(.2f, .5f);
-                    cRect.sizeDelta = new Vector2(34, 34);
-                    var cImg = cGo.GetComponent<Image>();
-                    cImg.sprite = hudCoinIcon;
-                    cImg.preserveAspect = true;
-                    cImg.raycastTarget = false;
-                }
-
-                var rText = Text(rewardPill.transform, $"+{shippingReward} COINS", new Vector2(.62f, .5f), new Vector2(170, 44), 24);
-                rText.fontStyle = FontStyles.Bold;
-                rText.color = new Color(.12f, .22f, .3f);
-
-                // Main Action Button (Next Stage)
-                var btn = StyledButton(panel.transform, button, new Vector2(.5f, .22f), new Vector2(340, 72), action,
-                    customSprite: hudGreenButtonSprite, customPressed: hudGreenButtonPressedSprite);
-                var btnTxt = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnTxt != null)
-                {
-                    btnTxt.color = Color.white;
-                    btnTxt.fontStyle = FontStyles.Bold;
-                    btnTxt.fontSize = 28;
-                }
-                btn.transform.DOPunchScale(Vector3.one * 0.06f, 1.2f, 1, 0.5f).SetLoops(-1).SetUpdate(true);
-            }
-            else
-            {
-                // Main Action Button (Try Again)
-                var btn = StyledButton(panel.transform, button, new Vector2(.5f, .24f), new Vector2(340, 72), action,
-                    icon: hudRetryIcon);
-                var btnTxt = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnTxt != null)
-                {
-                    btnTxt.fontStyle = FontStyles.Bold;
-                    btnTxt.fontSize = 26;
-                }
-            }
-
-            // Animate In
-            panel.transform.localScale = Vector3.zero;
-            panel.transform.DOScale(Vector3.one, 0.3f).SetEase(Ease.OutBack).SetUpdate(true);
-        }
-
         private void OnDestroy()
         {
             if (_sourceColors != null) Destroy(_sourceColors);
@@ -1318,3 +1124,4 @@ namespace BlockShooter
         }
     }
 }
+
