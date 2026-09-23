@@ -16,6 +16,8 @@ namespace BlockShooter
         public int SourceStage { get; private set; }
         private readonly List<ConveyorBlock3D> _sourcePickup = new();
         private ColorRegistryConfig _sourceColors;
+        private StageBranchSpec[] _sourceBranches;
+        public MacaronLevel.PuzzleStyle PuzzleStyle => _layout.ResolvePuzzleStyle(Stage);
 
         private void FrameTrayBoard()
         {
@@ -94,7 +96,7 @@ namespace BlockShooter
             root.transform.position += new Vector3(slotX - bounds.center.x, 0, slotBack + 1f - bounds.min.z);
             Conveyor.SpawnItem = (color, parent) => SpawnMacaronBlock(color, parent, conveyorMacaronScale);
             Conveyor.BuildEmptySlots();
-            Conveyor.BuildBranches(branches);
+            _sourceBranches = branches;
             _remaining = supply.Sum(group => group.RowCount * StageGroupSpec.LaneCount);
             RebuildSourceTrays(supply);
         }
@@ -123,6 +125,9 @@ namespace BlockShooter
                 .OrderByDescending(tray => tray.Capacity).ToArray();
             if (!templates.Any(tray => tray.Capacity == StageGroupSpec.LaneCount))
                 throw new InvalidOperationException("Source conveyor needs a four-pocket tray template to match complete rows.");
+            // Large trays use authored large-tray poses, never a small tray's footprint.
+            var poses = PuzzleStyle == MacaronLevel.PuzzleStyle.BigOrders
+                ? authored.Where(tray => tray.Capacity == templates[0].Capacity).ToArray() : authored;
 
             var orders = new List<(MacaronTray template, BlockColorType color)>();
             foreach (var group in supply)
@@ -130,7 +135,7 @@ namespace BlockShooter
                 int left = group.RowCount * StageGroupSpec.LaneCount;
                 while (left > 0)
                 {
-                    var pose = authored[orders.Count % authored.Length];
+                    var pose = poses[orders.Count % poses.Length];
                     var template = pose.Capacity <= left && pose.Capacity % StageGroupSpec.LaneCount == 0
                         ? pose : templates.First(tray => tray.Capacity == StageGroupSpec.LaneCount);
                     orders.Add((template, group.Color));
@@ -154,7 +159,7 @@ namespace BlockShooter
                     }
                 }
             }
-            int copies = Mathf.CeilToInt((float)orders.Count / authored.Length);
+            int copies = Mathf.CeilToInt((float)orders.Count / poses.Length);
             int layers = authored.Max(tray => tray.stackLayer) + 1;
             float bottom = authored.Min(tray => tray.transform.localPosition.y);
             float top = authored.Max(tray => tray.transform.localPosition.y);
@@ -162,9 +167,9 @@ namespace BlockShooter
             float tierHeight = top - bottom + height + .04f;
             for (int i = 0; i < orders.Count; i++)
             {
-                var pose = authored[i % authored.Length];
+                var pose = poses[i % poses.Length];
                 var order = orders[i];
-                int tier = copies - 1 - i / authored.Length;
+                int tier = copies - 1 - i / poses.Length;
                 var tray = Instantiate(order.template, _layout.trayRoot);
                 tray.name = $"Source tray {i + 1} {order.color}";
                 tray.transform.localPosition = pose.transform.localPosition + Vector3.up * (tier * tierHeight);
@@ -183,5 +188,124 @@ namespace BlockShooter
                 Destroy(tray.gameObject);
             }
         }
+
+        private void BuildPuzzleSupply()
+        {
+            if (PuzzleStyle == MacaronLevel.PuzzleStyle.Original)
+            {
+                Conveyor.BuildBranches(_sourceBranches);
+                return;
+            }
+            var order = BuildPuzzleOrder(_trays, PuzzleStyle);
+            var batches = order.Select(tray => new StageGroupSpec(tray.Color, tray.Capacity / StageGroupSpec.LaneCount)).ToArray();
+            // ponytail: one ordered feeder gives a constructive solution (ship one accessible tray at a time).
+            // Parallel feeders need a bounded look-ahead scheduler before sharing this queue.
+            int inlet = (Stage - 1) % _sourceBranches.Length;
+            Conveyor.BuildBranches(_sourceBranches.Select((branch, index) => new StageBranchSpec(
+                branch.Name, branch.MergeT, branch.ConnectFromLeft,
+                index == inlet ? batches : Array.Empty<StageGroupSpec>(), branch.Knots)).ToArray());
+        }
+
+        public static List<MacaronTray> BuildPuzzleOrder(IReadOnlyList<MacaronTray> trays, MacaronLevel.PuzzleStyle style)
+        {
+            var remaining = trays.ToList();
+            var result = new List<MacaronTray>(remaining.Count);
+            // ponytail: bounded tray boards use a direct blocker scan; cache the dependency graph for hundreds of trays.
+            while (remaining.Count > 0)
+            {
+                var accessible = remaining.Where(tray => !remaining.Any(tray.IsBlockedBy)).ToList();
+                if (accessible.Count == 0) throw new InvalidOperationException("Tray layout has no accessible removal order.");
+                MacaronTray next;
+                if (style == MacaronLevel.PuzzleStyle.ColorChains)
+                {
+                    var color = result.Count > 0 && accessible.Any(tray => tray.Color == result[result.Count - 1].Color)
+                        ? result[result.Count - 1].Color
+                        : accessible.GroupBy(tray => tray.Color).OrderByDescending(group => group.Sum(tray => tray.Capacity)).First().Key;
+                    next = accessible.First(tray => tray.Color == color);
+                }
+                else if (style == MacaronLevel.PuzzleStyle.BigOrders)
+                    next = accessible.OrderByDescending(tray => tray.Capacity).ThenByDescending(tray => tray.Layer).First();
+                else
+                    next = accessible.OrderByDescending(tray => remaining.Count(below => below.IsBlockedBy(tray)))
+                        .ThenByDescending(tray => tray.Layer).First();
+                if (next.Capacity <= 0 || next.Capacity % StageGroupSpec.LaneCount != 0)
+                    throw new InvalidOperationException("Puzzle trays must hold complete conveyor rows.");
+                result.Add(next);
+                remaining.Remove(next);
+            }
+            return result;
+        }
+
+        private string PuzzleHint => PuzzleStyle switch
+        {
+            MacaronLevel.PuzzleStyle.ClearLayers => "CLEAR LAYERS: uncover the next color.",
+            MacaronLevel.PuzzleStyle.ColorChains => "COLOR CHAINS: keep packing the same color.",
+            MacaronLevel.PuzzleStyle.BigOrders => "BIG ORDERS: leave room for a large tray.",
+            _ => _layout.instruction
+        };
+
+#if UNITY_EDITOR
+        [UnityEditor.MenuItem("Macaron Factory/Checks/Stage puzzles (Play Mode)")]
+        public static void CheckStagePuzzles()
+        {
+            if (!Application.isPlaying) throw new InvalidOperationException("Run in Play Mode.");
+            var source = UnityEngine.Object.FindFirstObjectByType<MacaronFactory>();
+            if (source == null) throw new InvalidOperationException("Open the factory scene.");
+            int checks = 0;
+            foreach (var prefab in source.levels)
+                foreach (var style in new[] { MacaronLevel.PuzzleStyle.ClearLayers,
+                    MacaronLevel.PuzzleStyle.ColorChains, MacaronLevel.PuzzleStyle.BigOrders })
+                {
+                    var root = new GameObject("Stage puzzle check");
+                    root.SetActive(false);
+                    try
+                    {
+                        var factory = root.AddComponent<MacaronFactory>();
+                        factory.colorRegistry = source.ColorRegistry;
+                        factory.macaronPrefabs = source.macaronPrefabs;
+                        factory.PaperMaterial = source.PaperMaterial;
+                        factory.Stage = checks / 3 + 1;
+                        factory._layout = Instantiate(prefab, root.transform);
+                        factory._layout.puzzleStyle = MacaronLevel.PuzzleStyle.Automatic;
+                        if (factory._layout.ResolvePuzzleStyle(1) != MacaronLevel.PuzzleStyle.Original ||
+                            factory._layout.ResolvePuzzleStyle(2) != MacaronLevel.PuzzleStyle.ClearLayers ||
+                            factory._layout.ResolvePuzzleStyle(3) != MacaronLevel.PuzzleStyle.ColorChains ||
+                            factory._layout.ResolvePuzzleStyle(4) != MacaronLevel.PuzzleStyle.BigOrders ||
+                            factory._layout.ResolvePuzzleStyle(5) != MacaronLevel.PuzzleStyle.ClearLayers)
+                            throw new Exception("Automatic stage progression changed.");
+                        factory._layout.puzzleStyle = style;
+                        var supply = factory._layout.BuildConveyorSupply(factory._layout.ResolveConveyorStage(factory.Stage), out _, out _);
+                        factory.RebuildSourceTrays(supply);
+                        factory.BuildTrays();
+                        var order = BuildPuzzleOrder(factory.Trays, style);
+                        if (order.Count != factory.Trays.Count || order.Distinct().Count() != order.Count ||
+                            !order.SequenceEqual(BuildPuzzleOrder(factory.Trays, style)))
+                            throw new Exception("Missing/duplicate trays or non-deterministic puzzle order.");
+                        var remaining = order.ToList();
+                        MacaronTray previous = null;
+                        foreach (var tray in order)
+                        {
+                            if (remaining.Any(tray.IsBlockedBy)) throw new Exception("Solution selects a covered tray.");
+                            if (style == MacaronLevel.PuzzleStyle.ColorChains && previous != null && tray.Color != previous.Color &&
+                                remaining.Any(other => other.Color == previous.Color && !remaining.Any(other.IsBlockedBy)))
+                                throw new Exception("Color Chains broke an available matching-color chain.");
+                            if (style == MacaronLevel.PuzzleStyle.BigOrders && remaining.Any(other =>
+                                other.Capacity > tray.Capacity && !remaining.Any(other.IsBlockedBy)))
+                                throw new Exception("Big Orders did not prioritize an accessible large tray.");
+                            remaining.Remove(tray);
+                            previous = tray;
+                        }
+                        var expected = supply.GroupBy(group => group.Color).ToDictionary(group => group.Key,
+                            group => group.Sum(batch => batch.RowCount * StageGroupSpec.LaneCount));
+                        var actual = order.GroupBy(tray => tray.Color).ToDictionary(group => group.Key, group => group.Sum(tray => tray.Capacity));
+                        if (expected.Count != actual.Count || expected.Any(pair => !actual.TryGetValue(pair.Key, out int count) || count != pair.Value))
+                            throw new Exception("Puzzle changed per-color cake totals.");
+                        checks++;
+                    }
+                    finally { DestroyImmediate(root); }
+                }
+            Debug.Log($"PASS: {checks} stage/style combinations preserve color totals, deterministic order and an unblocked solution.");
+        }
+#endif
     }
 }

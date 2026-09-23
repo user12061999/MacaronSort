@@ -106,17 +106,20 @@ namespace BlockShooter
         private readonly List<MacaronTray> _trays = new();
         private readonly MacaronTray[] _slots = new MacaronTray[6];
         private readonly List<Material> _materials = new();
-        private readonly TextMeshProUGUI[] _slotLabels = new TextMeshProUGUI[6];
+        [Header("Editable scene HUD")]
+        [SerializeField] private TextMeshProUGUI[] _slotLabels = new TextMeshProUGUI[6];
         private readonly Renderer[] _slotPads = new Renderer[6];
-        private TextMeshProUGUI _status, _coins, _progress, _stageText;
-        private TextMeshProUGUI _comboText;
-        private UnityEngine.UI.Slider _comboTimer;
+        [SerializeField] private TextMeshProUGUI _status, _coins, _progress, _stageText;
+        [SerializeField] private TextMeshProUGUI _comboText;
+        [SerializeField] private UnityEngine.UI.Slider _comboTimer;
+        [SerializeField] private Button _settingsButton;
+        [SerializeField] private UnityEngine.UI.Image _comboBackplate, _statusBackplate;
         private int _comboCount, _warningSlot = -1;
         private float _comboUntil;
         private MaterialPropertyBlock _warningTint;
         private RectTransform _overlay;
         private RectTransform _settingOverlay;
-        private RectTransform _hudRoot;
+        [SerializeField] private RectTransform _hudRoot;
         private Transform _remainingBadge;
         private int _remaining, _transfers, _shipped;
         private float _deadlockTime, _noticeUntil, _speedMultiplier = 1;
@@ -195,11 +198,17 @@ namespace BlockShooter
             BuildConveyor();
             FrameTrayBoard();
             BuildTrays();
+            BuildPuzzleSupply();
             BuildHud();
             RefreshAccessibility();
             GameManager.Instance.SetState(GameState.Playing);
             _ready = true;
             UpdateHud();
+            if (!string.IsNullOrEmpty(PuzzleHint))
+            {
+                _status.text = PuzzleHint;
+                _noticeUntil = Time.time + 6f;
+            }
         }
 
         private void BuildTrays()
@@ -708,8 +717,6 @@ namespace BlockShooter
                 if (_slotLabels[i] != null)
                 {
                     _slotLabels[i].text = i < OpenSlots ? "" : i == OpenSlots ? $"+\n{unlockSlotCost}" : "LOCKED";
-                    _slotLabels[i].fontSize = 20;
-                    _slotLabels[i].fontStyle = FontStyles.Bold;
                     _slotLabels[i].GetComponentInParent<Button>().interactable = i == OpenSlots;
                 }
                 if (_slotPads[i] != null)
@@ -942,6 +949,20 @@ namespace BlockShooter
 
         private void BuildHud()
         {
+            if (_hudRoot != null)
+            {
+                _settingsButton.onClick.AddListener(OpenSettings);
+                for (int i = 0; i < _slotLabels.Length; i++)
+                {
+                    int index = i;
+                    _slotLabels[i].GetComponentInParent<Button>().onClick.AddListener(() => { if (index >= OpenSlots) TryUnlockSlot(); });
+                }
+                _comboText.text = "";
+                _status.text = "";
+                _comboTimer.gameObject.SetActive(false);
+                PositionHudMarkers();
+                return;
+            }
             var canvas = new GameObject("Factory HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvas.transform.SetParent(transform, false);
             canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
@@ -957,7 +978,7 @@ namespace BlockShooter
             canvas = safeRoot;
 
             // Settings Button (Top-Left)
-            IconButton(canvas.transform, hudSettingIcon, new Vector2(.09f, .962f), new Vector2(58, 58), OpenSettings, "⚙");
+            _settingsButton = IconButton(canvas.transform, hudSettingIcon, new Vector2(.09f, .962f), new Vector2(58, 58), OpenSettings, "⚙");
 
             // Level Badge (Top-Center)
             var levelBadge = Panel(canvas.transform, new Vector2(.5f, .962f), new Vector2(240, 56), hudButtonSprite);
@@ -1165,6 +1186,8 @@ namespace BlockShooter
 
         private void LateUpdate()
         {
+            if (_comboBackplate != null) _comboBackplate.enabled = !string.IsNullOrEmpty(_comboText.text);
+            if (_statusBackplate != null) _statusBackplate.enabled = !string.IsNullOrEmpty(_status.text);
             if (_hudRoot != null) PositionHudMarkers();
         }
 

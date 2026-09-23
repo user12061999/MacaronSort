@@ -21,6 +21,13 @@ namespace BlockShooter
     [DisallowMultipleComponent]
     public sealed class MacaronLevel : MonoBehaviour
     {
+        public enum PuzzleStyle { Automatic, Original, ClearLayers, ColorChains, BigOrders }
+        [Header("Stage puzzle")]
+        [Tooltip("Automatic: stage 1 stays original; later stages cycle Clear Layers, Color Chains and Big Orders.")]
+        public PuzzleStyle puzzleStyle = PuzzleStyle.Automatic;
+        public PuzzleStyle ResolvePuzzleStyle(int stage) => puzzleStyle != PuzzleStyle.Automatic ? puzzleStyle
+            : stage <= 1 ? PuzzleStyle.Original : (PuzzleStyle)((stage - 2) % 3 + (int)PuzzleStyle.ClearLayers);
+
         public enum ConveyorShape
         {
             Automatic = 0,
