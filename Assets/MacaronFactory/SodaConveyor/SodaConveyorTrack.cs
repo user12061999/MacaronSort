@@ -23,7 +23,7 @@ namespace BlockShooter.SodaConveyor
         [Header("Exit / pickup window (fraction of the loop arc from spawn to pickup)")]
         [Range(0f, 0.5f)] [SerializeField] float exitWindowFraction = 0.08f;
         [Range(0f, 0.5f)] [SerializeField] float approachWindowFraction = 0.22f;
-        public const int LaneCount = StageGroupSpec.LaneCount;
+        public int LaneCount { get; private set; } = StageGroupSpec.LaneCount;
         const float FinishBoostMul = 5f;
         const float JumpDuration = 0.22f;
 
@@ -48,6 +48,8 @@ namespace BlockShooter.SodaConveyor
         float _cruiseSpeed;
         int _boostBaselineCount = -1;
         float _boostMul = 1f;
+        float _laneSpacing = StageLayout.LaneSpacing;
+        float _rowSpacing = StageTrackData.RowSpacing;
 
         readonly List<GroupEntry> _groups = new();
         readonly List<ConveyorSlot> _slots = new();
@@ -61,8 +63,8 @@ namespace BlockShooter.SodaConveyor
         public float SplineWorldLength => _trackWorldLength;
         public float OuterRadius => beltHalfWidth + StageTrackData.RailWidth;
         public float TrackHeight => trackHeight;
-        public float RowSpacing => StageTrackData.RowSpacing;
-        public float LaneSpacing => StageLayout.LaneSpacing;
+        public float RowSpacing => _rowSpacing;
+        public float LaneSpacing => _laneSpacing;
         public float ItemRadius { get; private set; } = .07f;
 
         // Visual size only affects clearance at the feeder mouth, never the belt geometry.
@@ -117,6 +119,15 @@ namespace BlockShooter.SodaConveyor
                 saved.branches[i] = new SavedBranch { rows = _branchPaths[i].CaptureRows() };
             return saved;
         }
+
+        public void SetLaneCount(int laneCount) => LaneCount = laneCount == 2 ? 2 : 4;
+
+        public void SetSpacing(float laneSpacing, float rowSpacing)
+        {
+            _laneSpacing = Mathf.Max(.01f, laneSpacing);
+            _rowSpacing = Mathf.Max(.01f, rowSpacing);
+        }
+
 
         // Restore after building the same stage's empty loop and branch geometry.
         public void RestoreState(SavedState saved)
@@ -452,7 +463,7 @@ namespace BlockShooter.SodaConveyor
             var group = go.AddComponent<SodaGroup>();
             group.colorType = spec.Color;
             group.rowCount = Mathf.Max(1, spec.RowCount);
-            group.laneCount = StageGroupSpec.LaneCount;
+            group.laneCount = LaneCount;
             group.laneSpacing = LaneSpacing;
             group.rowSpacing = RowSpacing;
 
@@ -513,7 +524,7 @@ namespace BlockShooter.SodaConveyor
             var group = go.AddComponent<SodaGroup>();
             group.colorType = color;
             group.rowCount = 1;
-            group.laneCount = StageGroupSpec.LaneCount;
+            group.laneCount = LaneCount;
             group.laneSpacing = LaneSpacing;
             group.rowSpacing = RowSpacing;
             group.Initialize();

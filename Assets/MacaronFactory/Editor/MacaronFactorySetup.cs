@@ -237,7 +237,7 @@ namespace BlockShooter.Editor
                         Check(tray.Label.text == "?", "Hidden tray must display a question mark");
                 }
                 Check(factory.Conveyor != null && factory.Conveyor.SplineWorldLength > 0, "Source spline must be initialized");
-                Check(factory.Rows.All(row => row.Length > 0 && row.Length <= SodaConveyor.StageGroupSpec.LaneCount), "Live source rows must fit four lanes");
+                Check(factory.Rows.All(row => row.Length > 0 && row.Length <= factory.maxRowWidth), "Live source rows must fit the level conveyor width");
                 Check(factory.PickupBlocks.All(block => block.Phase == ConveyorItemPhase.OnLoop && !block.IsDestroyed &&
                     factory.Conveyor.IsInExitWindow(block.PathT)), "Only live loop items inside the pickup window can fill trays");
 

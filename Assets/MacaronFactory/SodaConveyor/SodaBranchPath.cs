@@ -179,8 +179,8 @@ namespace BlockShooter.SodaConveyor
             if (row.CurrentT < 0f) return;
             if (row.Items == null)
             {
-                row.Items = new ConveyorBlock3D[StageGroupSpec.LaneCount];
-                for (var lane = 0; lane < StageGroupSpec.LaneCount; lane++)
+                row.Items = new ConveyorBlock3D[_track.LaneCount];
+                for (var lane = 0; lane < _track.LaneCount; lane++)
                 {
                     var item = _track.SpawnItem(row.Color, transform);
                     item.Phase = ConveyorItemPhase.OnBranch;
@@ -202,7 +202,7 @@ namespace BlockShooter.SodaConveyor
             {
                 var item = row.Items[lane];
                 if (item == null || item.Phase != ConveyorItemPhase.OnBranch) continue;
-                var xOff = (lane - (StageGroupSpec.LaneCount - 1) * 0.5f) * laneSpacing;
+                var xOff = (lane - (_track.LaneCount - 1) * 0.5f) * laneSpacing;
                 item.transform.SetPositionAndRotation(worldPos + right * xOff, rot);
             }
         }

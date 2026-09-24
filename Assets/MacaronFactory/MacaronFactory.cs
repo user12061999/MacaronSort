@@ -42,9 +42,7 @@ namespace BlockShooter
         [Tooltip("Cake shell materials by color. Empty uses GameManager's GameConfig color registry. Filling keeps its prefab material.")]
         public ColorRegistryConfig colorRegistry;
         public ColorRegistryConfig ColorRegistry => colorRegistry != null ? colorRegistry : GetComponent<GameManager>().config?.colorRegistry;
-        [Tooltip("Visual macaron scale only; belt dimensions and spacing stay unchanged. Collected cakes use the authored Pocket size.")]
-        [Min(.1f)] public float conveyorMacaronScale = 2f;
-        public int maxRowWidth => SodaConveyor.StageGroupSpec.LaneCount;
+        public int maxRowWidth => _layout != null ? _layout.conveyorLaneCount : SodaConveyor.StageGroupSpec.LaneCount;
         public float laneSpacing => Conveyor != null ? Conveyor.LaneSpacing : SodaConveyor.StageLayout.LaneSpacing;
         [Header("Macaron exit")]
         [Tooltip("Flight time in seconds. Set to 0 to use Macaron Exit Speed instead.")]

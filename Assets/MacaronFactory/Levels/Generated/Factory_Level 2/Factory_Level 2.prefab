@@ -17805,7 +17805,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d50afeb2cb348834a8213f590643ca57, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  puzzleStyle: 0
   conveyorShape: 2
+  conveyorLaneCount: 2
+  conveyorMacaronScale: 3
   waitingSlotScreenGap: 0.015
   overrideCakeSupply: 1
   colorCount: 6
@@ -17940,7 +17943,7 @@ MonoBehaviour:
   maxColorRunRows: 10
   activeColorLimit: 3
   laneSpacing: 0.22
-  rowSpacing: 0.24
+  rowSpacing: 0.3
   stopBeforeExit: 0.08
   exitZoneLength: 0.65
   cameraTilt: 72

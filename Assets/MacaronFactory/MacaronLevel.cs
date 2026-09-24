@@ -38,6 +38,10 @@ namespace BlockShooter
         [Header("Soda Shippers level conveyor")]
         [Tooltip("Select the matching ConveyorTestScene layout and its supply. Automatic keeps the stage sequence.")]
         public ConveyorShape conveyorShape = ConveyorShape.Automatic;
+        [Tooltip("Macarons across each conveyor row. Supported values are 2 and 4.")]
+        public int conveyorLaneCount = 4;
+        [Tooltip("Visual scale of conveyor macarons. Set per level prefab.")]
+        [Min(.1f)] public float conveyorMacaronScale = 2f;
         [Tooltip("Visible vertical gap between the tray pile and waiting slots, as a fraction of camera height.")]
         [Range(.005f, .06f)] public float waitingSlotScreenGap = .015f;
 
@@ -65,10 +69,12 @@ namespace BlockShooter
         public StageGroupSpec[] BuildConveyorSupply(int sourceStage,
             out StageGroupSpec[] main, out StageBranchSpec[] branches)
         {
+            if (conveyorLaneCount != 2 && conveyorLaneCount != 4)
+                throw new InvalidOperationException($"{name}: Conveyor Lane Count must be 2 or 4.");
             int preset = sourceStage - 1;
             main = StageLayout.MainGroups(preset);
             branches = StageLayout.Branches(preset, sourceStage <= 3 ? 1f : sourceStage <= 7 ? 1.25f : 1.5f,
-                sourceStage <= 3 ? 20 : 24);
+                sourceStage <= 3 ? 20 : 24, conveyorLaneCount);
             var original = main.Concat(branches.SelectMany(branch => branch.Groups)).ToArray();
             if (!overrideCakeSupply) return original;
             if (colorCount < 1 || colorCount > 9 || cakeCount < colorCount * 4 || cakeCount % 4 != 0)
@@ -77,9 +83,10 @@ namespace BlockShooter
                 BlockColorType.Red, BlockColorType.Green, BlockColorType.Blue, BlockColorType.Yellow,
                 BlockColorType.Purple, BlockColorType.Orange, BlockColorType.Custom1,
                 BlockColorType.Custom2, BlockColorType.Custom3 }).Distinct().Take(colorCount).ToArray();
-            int rows = cakeCount / StageGroupSpec.LaneCount;
+            int rowsPerColorQuantum = 4 / conveyorLaneCount;
+            int trayUnits = cakeCount / 4;
             main = palette.Select((color, index) => new StageGroupSpec(color,
-                rows / colorCount + (index < rows % colorCount ? 1 : 0))).ToArray();
+                (trayUnits / colorCount + (index < trayUnits % colorCount ? 1 : 0)) * rowsPerColorQuantum)).ToArray();
             branches = branches.Select(branch => new StageBranchSpec(branch.Name, branch.MergeT,
                 branch.ConnectFromLeft, Array.Empty<StageGroupSpec>(), branch.Knots)).ToArray();
             return main;
@@ -533,6 +540,8 @@ namespace BlockShooter
                 Array.Exists(feederBranches, branch => branch == null || branch.mainTrack != conveyorPath.GetComponent<ConveyorTrackMeshBuilder>() ||
                     branch.joinAt != ConveyorJunction.BranchEnd.End || branch.GetComponent<SplineContainer>().Spline.Closed)))
                 throw new InvalidOperationException($"{name}: a closed conveyor requires open feeder branches joined to this track at their ends.");
+            if (conveyorLaneCount != 2 && conveyorLaneCount != 4)
+                throw new InvalidOperationException($"{name}: Conveyor Lane Count must be 2 or 4.");
             if (columns < 1 || columns > 5) throw new InvalidOperationException($"{name}: Columns must be between 1 and 5.");
             if (activeColorLimit < 1 || activeColorLimit > 3)
                 throw new InvalidOperationException($"{name}: Active Color Limit must be between 1 and 3.");

@@ -49,7 +49,7 @@ namespace BlockShooter
                     track.openings.Clear();
                     track.openZoneEnabled = false;
                     track.sweepFrom = 0; track.sweepTo = 1;
-                    float diameter = factory.conveyorMacaronScale * factory.macaronPrefabs.Max(p => {
+                    float diameter = level.conveyorMacaronScale * factory.macaronPrefabs.Max(p => {
                         var b = p.GetComponent<Renderer>().localBounds;
                         return 2 * Mathf.Max(Mathf.Abs(b.center.x) + b.extents.x, Mathf.Abs(b.center.z) + b.extents.z);
                     });

@@ -32,6 +32,14 @@ namespace BlockShooter.Editor
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Level cake configuration", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("conveyorShape"));
+            var laneCount = serializedObject.FindProperty("conveyorLaneCount");
+            laneCount.intValue = EditorGUILayout.IntPopup("Macarons per conveyor row", laneCount.intValue,
+                new[] { "2", "4" }, new[] { 2, 4 });
+            if (serializedObject.ApplyModifiedProperties()) MacaronLevelPreview.Refresh();
+            serializedObject.Update();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("conveyorMacaronScale"), new GUIContent("Macaron Scale"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("laneSpacing"), new GUIContent("Lane Spacing"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("rowSpacing"), new GUIContent("Row Spacing"));
             var custom = serializedObject.FindProperty("overrideCakeSupply");
             var colors = serializedObject.FindProperty("colorCount");
             var cakes = serializedObject.FindProperty("cakeCount");
@@ -41,7 +49,7 @@ namespace BlockShooter.Editor
             {
                 var defaults = selected.BuildConveyorSupply(selected.ResolveConveyorStage(stage), out _, out _);
                 colors.intValue = defaults.Select(group => group.Color).Distinct().Count();
-                cakes.intValue = defaults.Sum(group => group.RowCount * 4);
+                cakes.intValue = defaults.Sum(group => group.RowCount * selected.conveyorLaneCount);
             }
             if (custom.boolValue)
             {
@@ -56,7 +64,7 @@ namespace BlockShooter.Editor
                 using (new EditorGUI.DisabledScope(true))
                 {
                     EditorGUILayout.IntField("Effective Color Count", supply.Select(group => group.Color).Distinct().Count());
-                    EditorGUILayout.IntField("Effective Cake Count", supply.Sum(group => group.RowCount * 4));
+                    EditorGUILayout.IntField("Effective Cake Count", supply.Sum(group => group.RowCount * selected.conveyorLaneCount));
                 }
             }
             catch (System.Exception error) { EditorGUILayout.HelpBox(error.Message, MessageType.Error); }
@@ -166,7 +174,7 @@ namespace BlockShooter.Editor
                     var builder = level.conveyorPath.GetComponent<ConveyorTrackMeshBuilder>();
                     float diameter = factory.macaronPrefabs.Max(prefab => {
                         var bounds = prefab.GetComponent<Renderer>().localBounds;
-                        return 2 * factory.conveyorMacaronScale * Mathf.Max(Mathf.Abs(bounds.center.x) + bounds.extents.x,
+                        return 2 * level.conveyorMacaronScale * Mathf.Max(Mathf.Abs(bounds.center.x) + bounds.extents.x,
                             Mathf.Abs(bounds.center.z) + bounds.extents.z);
                     });
                     level.laneSpacing = Mathf.Max(level.laneSpacing, diameter + .015f);

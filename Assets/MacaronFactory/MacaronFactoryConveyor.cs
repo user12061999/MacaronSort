@@ -84,8 +84,10 @@ namespace BlockShooter
             {
                 var box = prefab.GetComponent<Renderer>().localBounds;
                 return 2 * Mathf.Max(Mathf.Abs(box.center.x) + box.extents.x, Mathf.Abs(box.center.z) + box.extents.z);
-            }) * conveyorMacaronScale;
+            }) * _layout.conveyorMacaronScale;
+            Conveyor.SetLaneCount(_layout.conveyorLaneCount);
             Conveyor.SetItemDiameter(diameter);
+            Conveyor.SetSpacing(_layout.laneSpacing, _layout.rowSpacing);
             Conveyor.Configure(sourceLoopSpeed);
             Conveyor.BuildVisualBelt(branches);
 
@@ -94,10 +96,10 @@ namespace BlockShooter
             float slotX = _layout.waitingSlots.Average(slot => slot.position.x);
             float slotBack = _layout.waitingSlots.Max(slot => slot.position.z);
             root.transform.position += new Vector3(slotX - bounds.center.x, 0, slotBack + 1f - bounds.min.z);
-            Conveyor.SpawnItem = (color, parent) => SpawnMacaronBlock(color, parent, conveyorMacaronScale);
+            Conveyor.SpawnItem = (color, parent) => SpawnMacaronBlock(color, parent, _layout.conveyorMacaronScale);
             Conveyor.BuildEmptySlots();
             _sourceBranches = branches;
-            _remaining = supply.Sum(group => group.RowCount * StageGroupSpec.LaneCount);
+            _remaining = supply.Sum(group => group.RowCount * _layout.conveyorLaneCount);
             RebuildSourceTrays(supply);
         }
 
@@ -123,8 +125,9 @@ namespace BlockShooter
             var authored = _layout.GetTrays().OrderByDescending(tray => tray.stackLayer).ToArray();
             var templates = authored.GroupBy(tray => tray.Capacity).Select(group => group.First())
                 .OrderByDescending(tray => tray.Capacity).ToArray();
-            if (!templates.Any(tray => tray.Capacity == StageGroupSpec.LaneCount))
-                throw new InvalidOperationException("Source conveyor needs a four-pocket tray template to match complete rows.");
+            if (!templates.Any(tray => tray.Capacity == _layout.conveyorLaneCount ||
+                tray.Capacity > _layout.conveyorLaneCount && tray.Capacity % _layout.conveyorLaneCount == 0))
+                throw new InvalidOperationException($"Source conveyor needs a tray template divisible by {_layout.conveyorLaneCount}.");
             // Large trays use authored large-tray poses, never a small tray's footprint.
             var poses = PuzzleStyle == MacaronLevel.PuzzleStyle.BigOrders
                 ? authored.Where(tray => tray.Capacity == templates[0].Capacity).ToArray() : authored;
@@ -132,12 +135,15 @@ namespace BlockShooter
             var orders = new List<(MacaronTray template, BlockColorType color)>();
             foreach (var group in supply)
             {
-                int left = group.RowCount * StageGroupSpec.LaneCount;
+                int left = group.RowCount * _layout.conveyorLaneCount;
                 while (left > 0)
                 {
                     var pose = poses[orders.Count % poses.Length];
-                    var template = pose.Capacity <= left && pose.Capacity % StageGroupSpec.LaneCount == 0
-                        ? pose : templates.First(tray => tray.Capacity == StageGroupSpec.LaneCount);
+                    var template = pose.Capacity <= left && pose.Capacity % _layout.conveyorLaneCount == 0
+                        ? pose : templates.Where(tray => tray.Capacity <= left && tray.Capacity % _layout.conveyorLaneCount == 0)
+                            .OrderBy(tray => tray.Capacity).FirstOrDefault();
+                    if (template == null)
+                        throw new InvalidOperationException($"{name}: {group.Color} supply must fit the authored tray capacities in full.");
                     orders.Add((template, group.Color));
                     left -= template.Capacity;
                 }
@@ -196,17 +202,24 @@ namespace BlockShooter
                 Conveyor.BuildBranches(_sourceBranches);
                 return;
             }
-            var order = BuildPuzzleOrder(_trays, PuzzleStyle);
-            var batches = order.Select(tray => new StageGroupSpec(tray.Color, tray.Capacity / StageGroupSpec.LaneCount)).ToArray();
-            // ponytail: one ordered feeder gives a constructive solution (ship one accessible tray at a time).
-            // Parallel feeders need a bounded look-ahead scheduler before sharing this queue.
-            int inlet = (Stage - 1) % _sourceBranches.Length;
+            var order = BuildPuzzleOrder(_trays, PuzzleStyle, _layout.conveyorLaneCount);
+            var batches = order.Select(tray => new StageGroupSpec(tray.Color, tray.Capacity / _layout.conveyorLaneCount)).ToArray();
+            var branchBatches = Enumerable.Range(0, _sourceBranches.Length)
+                .Select(_ => new List<StageGroupSpec>()).ToArray();
+            var branchRows = new int[_sourceBranches.Length];
+            foreach (var batch in batches)
+            {
+                int inlet = Array.IndexOf(branchRows, branchRows.Min());
+                branchBatches[inlet].Add(batch);
+                branchRows[inlet] += batch.RowCount;
+            }
             Conveyor.BuildBranches(_sourceBranches.Select((branch, index) => new StageBranchSpec(
                 branch.Name, branch.MergeT, branch.ConnectFromLeft,
-                index == inlet ? batches : Array.Empty<StageGroupSpec>(), branch.Knots)).ToArray());
+                branchBatches[index].ToArray(), branch.Knots)).ToArray());
         }
 
-        public static List<MacaronTray> BuildPuzzleOrder(IReadOnlyList<MacaronTray> trays, MacaronLevel.PuzzleStyle style)
+        public static List<MacaronTray> BuildPuzzleOrder(IReadOnlyList<MacaronTray> trays,
+            MacaronLevel.PuzzleStyle style, int laneCount)
         {
             var remaining = trays.ToList();
             var result = new List<MacaronTray>(remaining.Count);
@@ -228,7 +241,7 @@ namespace BlockShooter
                 else
                     next = accessible.OrderByDescending(tray => remaining.Count(below => below.IsBlockedBy(tray)))
                         .ThenByDescending(tray => tray.Layer).First();
-                if (next.Capacity <= 0 || next.Capacity % StageGroupSpec.LaneCount != 0)
+                if (next.Capacity <= 0 || next.Capacity % laneCount != 0)
                     throw new InvalidOperationException("Puzzle trays must hold complete conveyor rows.");
                 result.Add(next);
                 remaining.Remove(next);
@@ -277,9 +290,9 @@ namespace BlockShooter
                         var supply = factory._layout.BuildConveyorSupply(factory._layout.ResolveConveyorStage(factory.Stage), out _, out _);
                         factory.RebuildSourceTrays(supply);
                         factory.BuildTrays();
-                        var order = BuildPuzzleOrder(factory.Trays, style);
+                        var order = BuildPuzzleOrder(factory.Trays, style, factory._layout.conveyorLaneCount);
                         if (order.Count != factory.Trays.Count || order.Distinct().Count() != order.Count ||
-                            !order.SequenceEqual(BuildPuzzleOrder(factory.Trays, style)))
+                            !order.SequenceEqual(BuildPuzzleOrder(factory.Trays, style, factory._layout.conveyorLaneCount)))
                             throw new Exception("Missing/duplicate trays or non-deterministic puzzle order.");
                         var remaining = order.ToList();
                         MacaronTray previous = null;
@@ -296,7 +309,7 @@ namespace BlockShooter
                             previous = tray;
                         }
                         var expected = supply.GroupBy(group => group.Color).ToDictionary(group => group.Key,
-                            group => group.Sum(batch => batch.RowCount * StageGroupSpec.LaneCount));
+                            group => group.Sum(batch => batch.RowCount * factory._layout.conveyorLaneCount));
                         var actual = order.GroupBy(tray => tray.Color).ToDictionary(group => group.Key, group => group.Sum(tray => tray.Capacity));
                         if (expected.Count != actual.Count || expected.Any(pair => !actual.TryGetValue(pair.Key, out int count) || count != pair.Value))
                             throw new Exception("Puzzle changed per-color cake totals.");

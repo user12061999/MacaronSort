@@ -105,10 +105,11 @@ namespace BlockShooter
             for (int i = 0; i < saved.conveyor.slots.Length; i++)
             {
                 var slot = saved.conveyor.slots[i];
-                if (!float.IsFinite(slot.t) || slot.t < 0 || slot.t >= 1 || slot.lanes < 0 || slot.lanes > 15) return false;
+                int laneMask = (1 << _layout.conveyorLaneCount) - 1;
+                if (!float.IsFinite(slot.t) || slot.t < 0 || slot.t >= 1 || slot.lanes < 0 || (slot.lanes & ~laneMask) != 0) return false;
                 float expectedT = saved.conveyor.slots[0].t + (float)i / saved.conveyor.slots.Length;
                 if (Mathf.Abs(Mathf.DeltaAngle(expectedT * 360, slot.t * 360)) > .01f) return false;
-                for (int lane = 0; lane < 4; lane++)
+                for (int lane = 0; lane < _layout.conveyorLaneCount; lane++)
                 {
                     if ((slot.lanes & (1 << lane)) == 0) continue;
                     if (!colors.ContainsKey(slot.color)) return false;
@@ -118,14 +119,14 @@ namespace BlockShooter
             }
             foreach (var branch in saved.conveyor.branches)
             {
-                if (branch?.rows == null || branch.rows.Length > _remaining / 4) return false;
+                if (branch?.rows == null || branch.rows.Length > _remaining / _layout.conveyorLaneCount) return false;
                 float previous = 1;
                 foreach (var row in branch.rows)
                 {
                     if (!float.IsFinite(row.t) || row.t > previous || !colors.ContainsKey(row.color)) return false;
                     previous = row.t;
-                    colors[row.color] -= 4;
-                    supply += 4;
+                    colors[row.color] -= _layout.conveyorLaneCount;
+                    supply += _layout.conveyorLaneCount;
                 }
             }
             return supply == saved.remaining && consumed + supply == _trays.Sum(t => t.Capacity) && colors.Values.All(n => n == 0);

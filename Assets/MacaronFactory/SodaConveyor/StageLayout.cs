@@ -46,7 +46,7 @@ namespace BlockShooter.SodaConveyor
             public int Rows;
         }
         public static StageGroupSpec[] MainGroups(int templateIndex) => StageTrackData.MainGroups(templateIndex);
-        public static StageBranchSpec[] Branches(int templateIndex, float contentScale = 1f, int canQuantum = 0)
+        public static StageBranchSpec[] Branches(int templateIndex, float contentScale = 1f, int canQuantum = 0, int laneCount = StageGroupSpec.LaneCount)
         {
             var source = StageTrackData.Branches(templateIndex);
             if (source.Length == 0) return source;
@@ -74,7 +74,7 @@ namespace BlockShooter.SodaConveyor
                 surplusCans[color] = n + surplus;
             }
             foreach (var g in StageTrackData.MainGroups(templateIndex))
-                Note(g.Color, g.RowCount * SourceLaneCount, g.RowCount * (SourceLaneCount - StageGroupSpec.LaneCount));
+                Note(g.Color, g.RowCount * SourceLaneCount, g.RowCount * (SourceLaneCount - laneCount));
             foreach (var b in source)
                 foreach (var g in b.Groups)
                     Note(g.Color, g.RowCount * SourceLaneCount, 0);
@@ -90,7 +90,7 @@ namespace BlockShooter.SodaConveyor
                 if (cans > 0) blocks.Add(new Block { Branch = -1, Color = color, Cans = cans });
             }
 
-            ApportionRows(blocks);
+            ApportionRows(blocks, laneCount);
 
             var groups = new List<StageGroupSpec>[source.Length];
             for (var b = 0; b < source.Length; b++)
@@ -121,9 +121,10 @@ namespace BlockShooter.SodaConveyor
             }
             return result;
         }
-        static void ApportionRows(List<Block> blocks)
+        static void ApportionRows(List<Block> blocks, int laneCount)
         {
-            var lanes = StageGroupSpec.LaneCount;
+            var lanes = laneCount;
+            var rowQuantum = 4 / lanes; // Authored trays hold at least four cakes.
             var seen = new HashSet<BlockColorType>();
             foreach (var first in blocks)
             {
@@ -135,12 +136,12 @@ namespace BlockShooter.SodaConveyor
                 {
                     if (block.Color != first.Color) continue;
                     total += block.Cans;
-                    block.Rows = block.Cans / lanes;
+                    block.Rows = block.Cans / 4 * rowQuantum;
                     floorSum += block.Rows;
                 }
 
-                var leftover = RowsFor(total) - floorSum;
-                while (leftover-- > 0)
+                var leftover = RowsFor(total, 4) * rowQuantum - floorSum;
+                while (leftover >= rowQuantum)
                 {
                     Block best = null;
                     foreach (var block in blocks)
@@ -149,14 +150,14 @@ namespace BlockShooter.SodaConveyor
                         if (best == null || block.Cans % lanes >= best.Cans % lanes) best = block;
                     }
                     if (best == null) break;
-                    best.Rows++;
-                    best.Cans -= best.Cans % lanes; // spent its fraction — don't pick it again for a tie
+                    best.Rows += rowQuantum;
+                    best.Cans -= best.Cans % 4; // spend its fraction so ties go to the next block
+                    leftover -= rowQuantum;
                 }
             }
         }
-        static int RowsFor(int cans)
+        static int RowsFor(int cans, int lanes)
         {
-            var lanes = StageGroupSpec.LaneCount;
             return (cans * 2 + lanes) / (2 * lanes);
         }
         static int PickBranch(List<StageGroupSpec>[] groups, BlockColorType color)
