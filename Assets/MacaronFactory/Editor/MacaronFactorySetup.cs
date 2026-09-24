@@ -151,14 +151,33 @@ namespace BlockShooter.Editor
         [MenuItem("Tools/Macaron Factory/Run Checks")]
         public static void RunChecks()
         {
-            var spreadBoxes = new[] {
-                new Bounds(new Vector3(-1, 0, -1), Vector3.one),
-                new Bounds(new Vector3(1, 2, 1), Vector3.one) };
-            var spread = MacaronLevel.TraySpreadOffsets(spreadBoxes,
-                new Bounds(Vector3.zero, new Vector3(6, 1, 8)), .15f);
-            Check(Mathf.Abs(spreadBoxes[0].min.x + spread[0].x + 2.85f) < .001f &&
-                Mathf.Abs(spreadBoxes[1].max.z + spread[1].z - 3.85f) < .001f &&
-                spread.All(offset => offset.y == 0), "Trays must reach board margins without changing stack heights");
+            foreach (MacaronLevel.TrayLayoutStyle style in System.Enum.GetValues(typeof(MacaronLevel.TrayLayoutStyle)))
+            foreach (int count in new[] { 0, 1, 2, 3, 4, 5, 10, 16, 32 })
+                for (int layer = 0; layer < 3; layer++)
+                {
+                    var sizes = Enumerable.Range(0, count).Select(i => new Vector2(1.48f, i % 3 == 0 ? .64f : 1f)).ToArray();
+                    var packed = MacaronLevel.PackTrayLayer(sizes, layer, style);
+                    Check(packed.SequenceEqual(MacaronLevel.PackTrayLayer(sizes, layer, style)), "Tray packing must be deterministic");
+                    for (int i = 0; i < count; i++)
+                    {
+                        Check(Mathf.Abs(packed[i].width * packed[i].height - sizes[i].x * sizes[i].y) < .001f,
+                            "Packing must preserve each tray footprint");
+                        for (int j = 0; j < i; j++)
+                            Check(!packed[i].Overlaps(packed[j]), "Trays on the same layer must not overlap");
+                    }
+                    if (count > 0)
+                        Check(Mathf.Abs(packed.Min(p => p.xMin) + packed.Max(p => p.xMax)) < .001f &&
+                            Mathf.Abs(packed.Min(p => p.yMin) + packed.Max(p => p.yMax)) < .001f,
+                            "Every style must center its actual bounds so board fitting keeps all edges inside");
+                    if (count == 16 && style == MacaronLevel.TrayLayoutStyle.Rectangle)
+                        Check(packed.Select(p => Mathf.RoundToInt(p.center.y * 100)).Distinct().Count() == 4 &&
+                            packed.Select(p => Mathf.RoundToInt(p.center.x * 100)).Distinct().Count() == 4, "Sixteen trays must form a regular 4x4 rectangle");
+                    if (count >= 4 && style == MacaronLevel.TrayLayoutStyle.Ring)
+                        Check(packed.All(p => !p.Contains(Vector2.zero)), "Ring must leave its center empty");
+                    if (count >= 10 && style == MacaronLevel.TrayLayoutStyle.Compact)
+                        Check(packed.Any(p => p.width > p.height) && packed.Any(p => p.height > p.width),
+                            "The pile must mix horizontal and vertical trays");
+                }
             var cameraObject = new GameObject("Tray clearance check") { hideFlags = HideFlags.HideAndDontSave };
             try
             {

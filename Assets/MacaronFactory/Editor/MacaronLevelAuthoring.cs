@@ -71,6 +71,7 @@ namespace BlockShooter.Editor
             serializedObject.Update();
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Layout and camera", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("trayLayoutStyle"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("shuffleTrayColors"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("trayArrangementSeed"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("repeatedTierOffset"));
@@ -80,7 +81,7 @@ namespace BlockShooter.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryTrayColor"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryRevealDuration"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("mysteryRevealScale"));
-            EditorGUILayout.HelpBox("Ratio applies to all trays, capped by initially covered trays. Color shuffle preserves capacity per color. Reveal waits until the covering tray clears its original footprint. Preview shows authored poses; these settings apply at runtime.", MessageType.Info);
+            EditorGUILayout.HelpBox("Ratio applies to all trays, capped by initially covered trays. Color shuffle preserves capacity per color. Reveal waits until the covering tray clears its original footprint. Preview uses authored tray counts; difficulty settings apply at runtime.", MessageType.Info);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("waitingSlotScreenGap"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraTilt"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("cameraFieldOfView"));
@@ -95,7 +96,7 @@ namespace BlockShooter.Editor
                 EditorGUI.indentLevel--;
             }
             if (serializedObject.ApplyModifiedProperties()) MacaronLevelPreview.Refresh();
-            EditorGUILayout.HelpBox("Preview shows the authored layout. Runtime rebuilds tray colors and quantities from the cake configuration. Edit tray positions in Prefab Mode.", MessageType.Info);
+            EditorGUILayout.HelpBox("Tray Layout Style applies to preview and gameplay. Preview uses authored tray counts; runtime rebuilds colors and quantities from the cake configuration.", MessageType.Info);
             if (!string.IsNullOrEmpty(MacaronLevelPreview.Error)) EditorGUILayout.HelpBox(MacaronLevelPreview.Error, MessageType.Warning);
             if (GUILayout.Button("Refresh scene / game preview")) MacaronLevelPreview.Refresh();
             if (GUILayout.Button("Focus preview in Scene")) MacaronLevelPreview.Focus();

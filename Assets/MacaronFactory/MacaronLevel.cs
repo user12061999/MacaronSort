@@ -49,6 +49,12 @@ namespace BlockShooter
         [Range(1, 9)] public int colorCount = 6;
         [Min(4)] public int cakeCount = 320;
 
+        public enum TrayLayoutStyle { Compact = 0, Rectangle = 1, Diamond = 2, Ring = 3 }
+
+        [Header("Tray layout")]
+        [Tooltip("Compact keeps the mixed pile. Rectangle, Diamond and Ring arrange each layer into a centered shape. Preview updates immediately.")]
+        public TrayLayoutStyle trayLayoutStyle = TrayLayoutStyle.Compact;
+
         [Header("Tray difficulty")]
         [Tooltip("Shuffle colors only between equal-capacity trays, preserving every color's cake total.")]
         public bool shuffleTrayColors = true;
@@ -189,54 +195,141 @@ namespace BlockShooter
 
         public MacaronTray[] GetTrays() => trayRoot.GetComponentsInChildren<MacaronTray>(true);
 
-        public void SpreadTraysOnBoard()
+        public void ArrangeTraysOnBoard()
         {
             var board = transform.Find("Tray board inset");
             var surface = board != null ? board.GetComponent<Renderer>() : null;
             var trays = GetTrays();
             if (surface == null || trays.Length == 0) return;
-            // Use collider geometry directly: preview disables colliders before framing.
-            var boxes = trays.Select(tray =>
+            var bounds = surface.bounds;
+            var available = new Vector2(bounds.size.x - .3f, bounds.size.z - .3f);
+            if (available.x <= 0 || available.y <= 0) return;
+            foreach (var layer in trays.GroupBy(tray => tray.stackLayer))
             {
-                var collider = tray.GetComponent<BoxCollider>();
-                var box = new Bounds(tray.transform.TransformPoint(collider.center), Vector3.zero);
-                for (int x = -1; x <= 1; x += 2)
-                    for (int y = -1; y <= 1; y += 2)
-                        for (int z = -1; z <= 1; z += 2)
-                            box.Encapsulate(tray.transform.TransformPoint(collider.center +
-                                Vector3.Scale(collider.size * .5f, new Vector3(x, y, z))));
-                return box;
-            }).ToArray();
-            var offsets = TraySpreadOffsets(boxes, surface.bounds, .15f);
-            for (int i = 0; i < trays.Length; i++) trays[i].transform.position += offsets[i];
-        }
-
-        public static Vector3[] TraySpreadOffsets(Bounds[] trays, Bounds board, float margin)
-        {
-            var offsets = new Vector3[trays.Length];
-            if (trays.Length == 0) return offsets;
-            var occupied = trays[0];
-            foreach (var tray in trays) occupied.Encapsulate(tray);
-            // ponytail: expand the authored arrangement on axis-aligned boards; rotated boards need a local-space layout.
-            foreach (int axis in new[] { 0, 2 })
-            {
-                float available = board.extents[axis] - margin;
-                if (available < occupied.extents[axis]) continue; // Never compress trays into one another.
-                float scale = float.PositiveInfinity;
-                foreach (var tray in trays)
+                var group = layer.ToArray();
+                var sizes = group.Select(tray => Vector3.Scale(tray.GetComponent<BoxCollider>().size,
+                    tray.transform.lossyScale)).Select(size => new Vector2(size.x, size.z)).ToArray();
+                var poses = PackTrayLayer(sizes, layer.Key, trayLayoutStyle);
+                float width = poses.Max(p => p.xMax) - poses.Min(p => p.xMin);
+                float depth = poses.Max(p => p.yMax) - poses.Min(p => p.yMin);
+                float fit = Mathf.Min(1, available.x / width, available.y / depth);
+                for (int i = 0; i < group.Length; i++)
                 {
-                    float distance = Mathf.Abs(tray.center[axis] - occupied.center[axis]);
-                    if (distance > .0001f)
-                        scale = Mathf.Min(scale, (available - tray.extents[axis]) / distance);
+                    var tray = group[i];
+                    bool turned = Mathf.Abs(poses[i].width - sizes[i].y) < .001f;
+                    tray.transform.rotation = Quaternion.Euler(0, turned ? 90 : 0, 0);
+                    tray.transform.localScale *= fit;
+                    var center = tray.transform.TransformPoint(tray.GetComponent<BoxCollider>().center);
+                    tray.transform.position += new Vector3(bounds.center.x + poses[i].center.x * fit - center.x,
+                        0, bounds.center.z + poses[i].center.y * fit - center.z);
                 }
-                if (!float.IsFinite(scale)) scale = 1;
-                foreach (int i in Enumerable.Range(0, trays.Length))
-                    offsets[i][axis] = board.center[axis] - occupied.center[axis] +
-                        (trays[i].center[axis] - occupied.center[axis]) * (Mathf.Max(1, scale) - 1);
             }
-            return offsets;
         }
 
+        public static Rect[] PackTrayLayer(Vector2[] sizes, int layer, TrayLayoutStyle style = TrayLayoutStyle.Compact)
+        {
+            if (sizes == null) throw new ArgumentNullException(nameof(sizes));
+            if (!Enum.IsDefined(typeof(TrayLayoutStyle), style)) throw new ArgumentOutOfRangeException(nameof(style));
+            foreach (var size in sizes)
+                if (size.x <= 0 || size.y <= 0 || !float.IsFinite(size.x + size.y))
+                    throw new ArgumentException("Tray footprints must be finite and positive.");
+            if (sizes.Length == 0) return Array.Empty<Rect>();
+            var placed = style == TrayLayoutStyle.Compact ? new List<Rect>() : ShapeTrayLayer(sizes, style).ToList();
+            // ponytail: greedy edge packing is for dozens of trays per layer; use a bin packer for hundreds.
+            for (int i = 0; style == TrayLayoutStyle.Compact && i < sizes.Length; i++)
+            {
+                float bestScore = float.PositiveInfinity;
+                Rect best = default;
+                for (int turn = 0; turn < 2; turn++)
+                {
+                    var size = turn == 0 ? sizes[i] : new Vector2(sizes[i].y, sizes[i].x);
+                    var candidates = new List<Vector2> { -size * .5f };
+                    float gap = Mathf.Min(size.x, size.y) * .045f;
+                    foreach (var other in placed)
+                        for (int align = 0; align < 3; align++)
+                        {
+                            float x = Mathf.Lerp(other.xMin, other.xMax - size.x, align * .5f);
+                            float z = Mathf.Lerp(other.yMin, other.yMax - size.y, align * .5f);
+                            candidates.Add(new Vector2(other.xMax + gap, z));
+                            candidates.Add(new Vector2(other.xMin - gap - size.x, z));
+                            candidates.Add(new Vector2(x, other.yMax + gap));
+                            candidates.Add(new Vector2(x, other.yMin - gap - size.y));
+                        }
+                    foreach (var position in candidates)
+                    {
+                        var rect = new Rect(position, size);
+                        var padded = new Rect(position - Vector2.one * (gap * .49f), size + Vector2.one * (gap * .98f));
+                        if (placed.Any(other => padded.Overlaps(other))) continue;
+                        float radiusX = Mathf.Max(Mathf.Abs(rect.xMin), Mathf.Abs(rect.xMax));
+                        float radiusZ = Mathf.Max(Mathf.Abs(rect.yMin), Mathf.Abs(rect.yMax));
+                        float score = radiusX * radiusX + radiusZ * radiusZ + rect.center.sqrMagnitude * .1f;
+                        if (turn != (i + layer) % 2) score += sizes[i].sqrMagnitude * .03f;
+                        if (score >= bestScore) continue;
+                        bestScore = score;
+                        best = rect;
+                    }
+                }
+                placed.Add(best);
+            }
+            var center = new Vector2((placed.Min(p => p.xMin) + placed.Max(p => p.xMax)) * .5f,
+                (placed.Min(p => p.yMin) + placed.Max(p => p.yMax)) * .5f);
+            return placed.Select(rect => new Rect(rect.position - center, rect.size)).ToArray();
+        }
+
+        private static Rect[] ShapeTrayLayer(Vector2[] sizes, TrayLayoutStyle style)
+        {
+            int count = sizes.Length;
+            var result = new Rect[count];
+            float longSide = sizes.Max(s => Mathf.Max(s.x, s.y));
+            float shortSide = sizes.Max(s => Mathf.Min(s.x, s.y));
+            float gap = shortSide * .045f;
+            var cell = new Vector2(longSide + gap, shortSide + gap);
+            if (style == TrayLayoutStyle.Ring && count >= 4)
+            {
+                // Four centered sides, with corner clearance for perpendicular trays.
+                int perSide = Mathf.CeilToInt(count / 4f);
+                float radius = (perSide * cell.x + shortSide + gap) * .5f;
+                for (int side = 0, index = 0; side < 4; side++)
+                {
+                    int length = count / 4 + (side < count % 4 ? 1 : 0);
+                    for (int j = 0; j < length; j++, index++)
+                    {
+                        var size = new Vector2(Mathf.Max(sizes[index].x, sizes[index].y),
+                            Mathf.Min(sizes[index].x, sizes[index].y));
+                        float along = (j - (length - 1) * .5f) * cell.x;
+                        var center = side % 2 == 0 ? new Vector2(along, side == 0 ? radius : -radius)
+                            : new Vector2(side == 1 ? radius : -radius, along);
+                        if (side % 2 != 0) size = new Vector2(size.y, size.x);
+                        result[index] = new Rect(center - size * .5f, size);
+                    }
+                }
+                return result;
+            }
+
+            int rows = Enumerable.Range(1, count).OrderBy(row =>
+                Mathf.Abs(Mathf.Log(Mathf.Ceil(count / (float)row) * cell.x / (row * cell.y))) +
+                2 * (Mathf.Ceil(count / (float)row) * row - count) / count).First();
+            if (style == TrayLayoutStyle.Diamond)
+                rows = Mathf.Clamp(2 * Mathf.RoundToInt((Mathf.Sqrt(2 * count * cell.x / cell.y) - 1) * .5f) + 1, 1, count);
+            var weights = Enumerable.Range(0, rows).Select(row => style == TrayLayoutStyle.Diamond
+                ? 1f + Mathf.Min(row, rows - 1 - row)
+                : 1f).ToArray();
+            float totalWeight = weights.Sum();
+            var lengths = weights.Select(weight => Mathf.FloorToInt(count * weight / totalWeight)).ToArray();
+            var middleFirst = Enumerable.Range(0, rows).OrderBy(row => Mathf.Abs(row - (rows - 1) * .5f)).ToArray();
+            int remaining = count - lengths.Sum();
+            if (rows % 2 != 0 && remaining % 2 != 0) { lengths[rows / 2]++; remaining--; }
+            foreach (int row in middleFirst.Where(row => rows % 2 == 0 || row != rows / 2).Take(remaining)) lengths[row]++;
+            for (int row = 0, index = 0; row < rows; row++)
+                for (int column = 0; column < lengths[row]; column++, index++)
+                {
+                    var size = new Vector2(Mathf.Max(sizes[index].x, sizes[index].y), Mathf.Min(sizes[index].x, sizes[index].y));
+                    var center = new Vector2((column - (lengths[row] - 1) * .5f) * cell.x,
+                        ((rows - 1) * .5f - row) * cell.y);
+                    result[index] = new Rect(center - size * .5f, size);
+                }
+            return result;
+        }
         public void MoveRemainingBadgeToTraySide()
         {
             if (waitingSlots == null || waitingSlots.Length == 0 || Array.Exists(waitingSlots, slot => slot == null)) return;

@@ -17813,6 +17813,7 @@ MonoBehaviour:
   overrideCakeSupply: 1
   colorCount: 6
   cakeCount: 600
+  trayLayoutStyle: 0
   shuffleTrayColors: 1
   trayArrangementSeed: 10
   repeatedTierOffset: {x: 0.12, y: 0.08}

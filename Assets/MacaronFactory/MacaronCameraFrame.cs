@@ -21,7 +21,7 @@ namespace BlockShooter
         public void FrameFactoryLayout(MacaronLevel level, System.Func<IEnumerable<Bounds>> sceneBounds)
         {
             _floor = level.transform.Find("Factory floor");
-            level.SpreadTraysOnBoard();
+            level.ArrangeTraysOnBoard();
             var camera = GetComponent<Camera>();
             var waiting = level.waitingSlots.SelectMany(slot => slot.GetComponentsInChildren<Renderer>())
                 .Select(renderer => renderer.bounds).ToList();
