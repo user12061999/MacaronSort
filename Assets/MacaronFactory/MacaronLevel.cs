@@ -49,16 +49,16 @@ namespace BlockShooter
         [Range(1, 9)] public int colorCount = 6;
         [Min(4)] public int cakeCount = 320;
 
-        public enum TrayLayoutStyle { Compact = 0, Rectangle = 1, Diamond = 2, Ring = 3 }
+        public enum TrayLayoutStyle { Compact = 0, Rectangle = 1, Diamond = 2, Pyramid = 3 }
 
         [Header("Tray layout")]
-        [Tooltip("Compact keeps the mixed pile. Rectangle, Diamond and Ring arrange each layer into a centered shape. Preview updates immediately.")]
+        [Tooltip("Compact keeps the mixed pile. Rectangle and Diamond arrange flat layouts; Pyramid stacks rectangular layers and shrinks each upper tier by 10%. Preview updates immediately.")]
         public TrayLayoutStyle trayLayoutStyle = TrayLayoutStyle.Compact;
 
         [Header("Tray difficulty")]
         [Tooltip("Shuffle colors only between equal-capacity trays, preserving every color's cake total.")]
         public bool shuffleTrayColors = true;
-        [Tooltip("Seed for tray colors and mystery selection. Retry keeps the same arrangement.")]
+        [Tooltip("Seed for tray colors, mystery selection and tray scatter. Retry keeps the same arrangement.")]
         public int trayArrangementSeed = 1;
         [Tooltip("Local X/Z offset of alternate repeated stack tiers. Zero keeps authored alignment.")]
         public Vector2 repeatedTierOffset = new Vector2(.12f, .08f);
@@ -204,15 +204,30 @@ namespace BlockShooter
             var bounds = surface.bounds;
             var available = new Vector2(bounds.size.x - .3f, bounds.size.z - .3f);
             if (available.x <= 0 || available.y <= 0) return;
+            float pyramidFit = 1;
+            int lowestPyramidLayer = trays.Min(tray => tray.stackLayer);
+            int highestPyramidLayer = trays.Max(tray => tray.stackLayer);
+            if (trayLayoutStyle == TrayLayoutStyle.Pyramid)
+                foreach (var layer in trays.GroupBy(tray => tray.stackLayer))
+                {
+                    var sizes = layer.Select(tray => Vector3.Scale(tray.GetComponent<BoxCollider>().size,
+                        tray.transform.lossyScale)).Select(size => new Vector2(size.x, size.z)).ToArray();
+                    var poses = PackTrayLayer(sizes, layer.Key, TrayLayoutStyle.Rectangle, trayArrangementSeed);
+                    pyramidFit = Mathf.Min(pyramidFit, available.x / (poses.Max(p => p.xMax) - poses.Min(p => p.xMin)),
+                        available.y / (poses.Max(p => p.yMax) - poses.Min(p => p.yMin)));
+                }
             foreach (var layer in trays.GroupBy(tray => tray.stackLayer))
             {
                 var group = layer.ToArray();
                 var sizes = group.Select(tray => Vector3.Scale(tray.GetComponent<BoxCollider>().size,
                     tray.transform.lossyScale)).Select(size => new Vector2(size.x, size.z)).ToArray();
-                var poses = PackTrayLayer(sizes, layer.Key, trayLayoutStyle);
+                var poses = PackTrayLayer(sizes, layer.Key, trayLayoutStyle == TrayLayoutStyle.Pyramid ? TrayLayoutStyle.Rectangle : trayLayoutStyle, trayArrangementSeed);
                 float width = poses.Max(p => p.xMax) - poses.Min(p => p.xMin);
                 float depth = poses.Max(p => p.yMax) - poses.Min(p => p.yMin);
-                float fit = Mathf.Min(1, available.x / width, available.y / depth);
+                float tierProgress = highestPyramidLayer == lowestPyramidLayer ? 0
+                    : Mathf.InverseLerp(lowestPyramidLayer, highestPyramidLayer, layer.Key);
+                float fit = trayLayoutStyle == TrayLayoutStyle.Pyramid ? pyramidFit * Mathf.Lerp(1f, .9f, tierProgress)
+                    : Mathf.Min(1, available.x / width, available.y / depth);
                 for (int i = 0; i < group.Length; i++)
                 {
                     var tray = group[i];
@@ -226,7 +241,7 @@ namespace BlockShooter
             }
         }
 
-        public static Rect[] PackTrayLayer(Vector2[] sizes, int layer, TrayLayoutStyle style = TrayLayoutStyle.Compact)
+        public static Rect[] PackTrayLayer(Vector2[] sizes, int layer, TrayLayoutStyle style = TrayLayoutStyle.Compact, int seed = 0)
         {
             if (sizes == null) throw new ArgumentNullException(nameof(sizes));
             if (!Enum.IsDefined(typeof(TrayLayoutStyle), style)) throw new ArgumentOutOfRangeException(nameof(style));
@@ -234,7 +249,7 @@ namespace BlockShooter
                 if (size.x <= 0 || size.y <= 0 || !float.IsFinite(size.x + size.y))
                     throw new ArgumentException("Tray footprints must be finite and positive.");
             if (sizes.Length == 0) return Array.Empty<Rect>();
-            var placed = style == TrayLayoutStyle.Compact ? new List<Rect>() : ShapeTrayLayer(sizes, style).ToList();
+            var placed = style == TrayLayoutStyle.Compact ? new List<Rect>() : ShapeTrayLayer(sizes, style, layer, seed).ToList();
             // ponytail: greedy edge packing is for dozens of trays per layer; use a bin packer for hundreds.
             for (int i = 0; style == TrayLayoutStyle.Compact && i < sizes.Length; i++)
             {
@@ -276,41 +291,39 @@ namespace BlockShooter
             return placed.Select(rect => new Rect(rect.position - center, rect.size)).ToArray();
         }
 
-        private static Rect[] ShapeTrayLayer(Vector2[] sizes, TrayLayoutStyle style)
+        private static Rect[] ShapeTrayLayer(Vector2[] sizes, TrayLayoutStyle style, int layer, int seed)
         {
             int count = sizes.Length;
-            var result = new Rect[count];
-            float longSide = sizes.Max(s => Mathf.Max(s.x, s.y));
-            float shortSide = sizes.Max(s => Mathf.Min(s.x, s.y));
-            float gap = shortSide * .045f;
-            var cell = new Vector2(longSide + gap, shortSide + gap);
-            if (style == TrayLayoutStyle.Ring && count >= 4)
+            var random = new System.Random(unchecked(seed ^ layer * 486187739 ^ (int)style * 16777619));
+            bool firstVertical = false;
+            var trays = sizes.Select((size, index) =>
             {
-                // Four centered sides, with corner clearance for perpendicular trays.
-                int perSide = Mathf.CeilToInt(count / 4f);
-                float radius = (perSide * cell.x + shortSide + gap) * .5f;
-                for (int side = 0, index = 0; side < 4; side++)
-                {
-                    int length = count / 4 + (side < count % 4 ? 1 : 0);
-                    for (int j = 0; j < length; j++, index++)
-                    {
-                        var size = new Vector2(Mathf.Max(sizes[index].x, sizes[index].y),
-                            Mathf.Min(sizes[index].x, sizes[index].y));
-                        float along = (j - (length - 1) * .5f) * cell.x;
-                        var center = side % 2 == 0 ? new Vector2(along, side == 0 ? radius : -radius)
-                            : new Vector2(side == 1 ? radius : -radius, along);
-                        if (side % 2 != 0) size = new Vector2(size.y, size.x);
-                        result[index] = new Rect(center - size * .5f, size);
-                    }
-                }
-                return result;
+                bool vertical = random.NextDouble() < .5;
+                if (index == 0) firstVertical = vertical;
+                if (index == count - 1 && count > 1 && vertical == firstVertical) vertical = !vertical;
+                float longSide = Mathf.Max(size.x, size.y), shortSide = Mathf.Min(size.x, size.y);
+                return vertical ? new Vector2(shortSide, longSide) : new Vector2(longSide, shortSide);
+            }).ToArray();
+            float longSide = trays.Max(size => Mathf.Max(size.x, size.y));
+            float shortSide = trays.Max(size => Mathf.Min(size.x, size.y));
+            float gap = shortSide * .18f;
+            int rows;
+            if (style == TrayLayoutStyle.Pyramid)
+            {
+                int maxRows = Mathf.CeilToInt(Mathf.Sqrt(count));
+                rows = Enumerable.Range(1, maxRows)
+                    .Where(row => count - (row - 1) * (row - 1) <= 2 * row + 1)
+                    .OrderBy(row => Mathf.Abs(Mathf.Log((count - (row - 1) * (row - 1)) / (float)(2 * row - 1))))
+                    .First();
             }
-
-            int rows = Enumerable.Range(1, count).OrderBy(row =>
-                Mathf.Abs(Mathf.Log(Mathf.Ceil(count / (float)row) * cell.x / (row * cell.y))) +
-                2 * (Mathf.Ceil(count / (float)row) * row - count) / count).First();
-            if (style == TrayLayoutStyle.Diamond)
-                rows = Mathf.Clamp(2 * Mathf.RoundToInt((Mathf.Sqrt(2 * count * cell.x / cell.y) - 1) * .5f) + 1, 1, count);
+            else
+            {
+                rows = Enumerable.Range(1, count).OrderBy(row =>
+                    Mathf.Abs(Mathf.Log(Mathf.Ceil(count / (float)row) * longSide / (row * shortSide))) +
+                    2 * (Mathf.Ceil(count / (float)row) * row - count) / count).First();
+                if (style == TrayLayoutStyle.Diamond)
+                    rows = Mathf.Clamp(2 * Mathf.RoundToInt((Mathf.Sqrt(2 * count * longSide / shortSide) - 1) * .5f) + 1, 1, count);
+            }
             var weights = Enumerable.Range(0, rows).Select(row => style == TrayLayoutStyle.Diamond
                 ? 1f + Mathf.Min(row, rows - 1 - row)
                 : 1f).ToArray();
@@ -320,14 +333,36 @@ namespace BlockShooter
             int remaining = count - lengths.Sum();
             if (rows % 2 != 0 && remaining % 2 != 0) { lengths[rows / 2]++; remaining--; }
             foreach (int row in middleFirst.Where(row => rows % 2 == 0 || row != rows / 2).Take(remaining)) lengths[row]++;
-            for (int row = 0, index = 0; row < rows; row++)
-                for (int column = 0; column < lengths[row]; column++, index++)
+
+            var rowDepths = new float[rows];
+            int trayIndex = 0;
+            for (int row = 0; row < rows; row++)
+                for (int column = 0; column < lengths[row]; column++, trayIndex++)
+                    rowDepths[row] = Mathf.Max(rowDepths[row], trays[trayIndex].y);
+            float depth = rowDepths.Sum() + gap * (rows - 1);
+            var result = new Rect[count];
+            float z = depth * .5f;
+
+            for (int row = 0; row < rows; row++)
+            {
+                z -= rowDepths[row] * .5f;
+                trayIndex = lengths.Take(row).Sum();
+                float width = 0;
+                for (int column = 0; column < lengths[row]; column++) width += trays[trayIndex + column].x;
+                width += gap * (lengths[row] - 1);
+                float x = -width * .5f;
+                for (int column = 0; column < lengths[row]; column++)
                 {
-                    var size = new Vector2(Mathf.Max(sizes[index].x, sizes[index].y), Mathf.Min(sizes[index].x, sizes[index].y));
-                    var center = new Vector2((column - (lengths[row] - 1) * .5f) * cell.x,
-                        ((rows - 1) * .5f - row) * cell.y);
-                    result[index] = new Rect(center - size * .5f, size);
+                    var size = trays[trayIndex];
+                    x += size.x * .5f;
+                    var center = new Vector2(x, z) + new Vector2((float)(random.NextDouble() - .5) * gap * .9f,
+                        (float)(random.NextDouble() - .5) * gap * .9f);
+                    result[trayIndex] = new Rect(center - size * .5f, size);
+                    x += size.x * .5f + gap;
+                    trayIndex++;
                 }
+                z -= rowDepths[row] * .5f + gap;
+            }
             return result;
         }
         public void MoveRemainingBadgeToTraySide()

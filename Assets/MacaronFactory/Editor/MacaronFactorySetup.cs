@@ -172,8 +172,13 @@ namespace BlockShooter.Editor
                     if (count == 16 && style == MacaronLevel.TrayLayoutStyle.Rectangle)
                         Check(packed.Select(p => Mathf.RoundToInt(p.center.y * 100)).Distinct().Count() == 4 &&
                             packed.Select(p => Mathf.RoundToInt(p.center.x * 100)).Distinct().Count() == 4, "Sixteen trays must form a regular 4x4 rectangle");
-                    if (count >= 4 && style == MacaronLevel.TrayLayoutStyle.Ring)
-                        Check(packed.All(p => !p.Contains(Vector2.zero)), "Ring must leave its center empty");
+                    if (count >= 4 && style == MacaronLevel.TrayLayoutStyle.Pyramid)
+                    {
+                        var rows = packed.GroupBy(p => Mathf.RoundToInt(p.center.y * 100)).OrderByDescending(row => row.Key)
+                            .Select(row => row.Count()).ToArray();
+                        Check(rows.SequenceEqual(rows.Select((_, i) => i == rows.Length - 1 ? count - i * i : i * 2 + 1)),
+                            "Pyramid rows must grow into a solid centered peak");
+                    }
                     if (count >= 10 && style == MacaronLevel.TrayLayoutStyle.Compact)
                         Check(packed.Any(p => p.width > p.height) && packed.Any(p => p.height > p.width),
                             "The pile must mix horizontal and vertical trays");
