@@ -106,6 +106,7 @@ namespace BlockShooter.Editor
             track.SideMaterial = belt.GetComponent<Renderer>().sharedMaterials[0];
             track.TopMaterial = belt.GetComponent<Renderer>().sharedMaterials[1];
             track.SetTrackShape(preset, 1);
+            track.SetBeltWidth(level.conveyorWidth);
             float diameter = factory.macaronPrefabs.Max(prefab =>
             {
                 var bounds = prefab.GetComponent<Renderer>().localBounds;

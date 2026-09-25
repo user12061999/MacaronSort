@@ -80,6 +80,7 @@ namespace BlockShooter
             Conveyor.SideMaterial = Material("Conveyor sides", new Color(.35f, .35f, .4f));
             Conveyor.TopMaterial = Material("Conveyor top", new Color(.2f, .2f, .24f));
             Conveyor.SetTrackShape(preset, 1f);
+            Conveyor.SetBeltWidth(_layout.conveyorWidth);
             float diameter = macaronPrefabs.Max(prefab =>
             {
                 var box = prefab.GetComponent<Renderer>().localBounds;

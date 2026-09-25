@@ -17981,6 +17981,7 @@ MonoBehaviour:
   conveyorShape: 9
   conveyorLaneCount: 2
   conveyorMacaronScale: 3
+  conveyorWidth: 1.1
   waitingSlotScreenGap: 0.015
   overrideCakeSupply: 1
   colorCount: 6

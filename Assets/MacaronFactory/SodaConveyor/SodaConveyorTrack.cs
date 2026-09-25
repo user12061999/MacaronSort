@@ -79,6 +79,7 @@ namespace BlockShooter.SodaConveyor
             trackShapePreset = preset;
             trackScale = scale;
         }
+        public void SetBeltWidth(float width) => beltHalfWidth = Mathf.Max(.45f, width * .5f);
 
         public void Configure(float loopSpeed)
         {

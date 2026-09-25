@@ -38,6 +38,7 @@ namespace BlockShooter.Editor
             if (serializedObject.ApplyModifiedProperties()) MacaronLevelPreview.Refresh();
             serializedObject.Update();
             EditorGUILayout.PropertyField(serializedObject.FindProperty("conveyorMacaronScale"), new GUIContent("Macaron Scale"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("conveyorWidth"), new GUIContent("Conveyor Width"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("laneSpacing"), new GUIContent("Lane Spacing"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("rowSpacing"), new GUIContent("Row Spacing"));
             var custom = serializedObject.FindProperty("overrideCakeSupply");

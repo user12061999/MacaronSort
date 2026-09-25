@@ -42,6 +42,8 @@ namespace BlockShooter
         public int conveyorLaneCount = 4;
         [Tooltip("Visual scale of conveyor macarons. Set per level prefab.")]
         [Min(.1f)] public float conveyorMacaronScale = 2f;
+        [Tooltip("Total conveyor width in world units. Increase this to make the belt wider in the level preview and gameplay.")]
+        [Min(.9f)] public float conveyorWidth = .9f;
         [Tooltip("Visible vertical gap between the tray pile and waiting slots, as a fraction of camera height.")]
         [Range(.005f, .06f)] public float waitingSlotScreenGap = .015f;
 

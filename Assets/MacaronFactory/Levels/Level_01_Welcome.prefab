@@ -288,10 +288,14 @@ MonoBehaviour:
   bevelSize: 0.04
   resolution: 180
   vTiling: 8
-  openZoneEnabled: 0
-  openZoneHalfT: 0.015
   trimBranchEnd: 0
   mainTrackSpline: {fileID: 0}
+  sweepFrom: 0
+  sweepTo: 1
+  closeBottom: 0
+  openZoneEnabled: 0
+  openZoneHalfT: 0.015
+  openings: []
   branchOnRightSide: 1
   isDraggingInEditor: 0
 --- !u!1 &1767722300997906401
@@ -963,7 +967,8 @@ Transform:
   m_LocalPosition: {x: 0, y: -0.6, z: 0}
   m_LocalScale: {x: 9, y: 0.08, z: 14}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 6603304964366856930}
   m_Father: {fileID: 4418121872175705578}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &4825823839972944119
@@ -981,6 +986,93 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4117605376438921073}
+  m_Enabled: 0
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 85bf1deba2fca2d41a965f5998858899, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &4137696135097295462
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6603304964366856930}
+  - component: {fileID: 4717596465104004774}
+  - component: {fileID: 4538383692965038387}
+  - component: {fileID: 7117858196566192185}
+  m_Layer: 0
+  m_Name: Plane
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6603304964366856930
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4137696135097295462}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 0.11111112, y: 12.5, z: 0.12}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4472590675898139704}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &4717596465104004774
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4137696135097295462}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &4538383692965038387
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4137696135097295462}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -1019,6 +1111,28 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!64 &7117858196566192185
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4137696135097295462}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 0
+  m_CookingOptions: 30
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &4515600978115682061
 GameObject:
   m_ObjectHideFlags: 0
@@ -1456,6 +1570,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d50afeb2cb348834a8213f590643ca57, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  puzzleStyle: 0
+  conveyorShape: 0
+  conveyorLaneCount: 4
+  conveyorMacaronScale: 2
+  conveyorWidth: 0.9
+  waitingSlotScreenGap: 0.015
+  overrideCakeSupply: 0
+  colorCount: 6
+  cakeCount: 320
+  trayLayoutStyle: 0
+  shuffleTrayColors: 1
+  trayArrangementSeed: 1
+  repeatedTierOffset: {x: 0.12, y: 0.08}
+  mysteryTrayRatio: 0.5
+  mysteryTrayColor: {r: 0.55, g: 0.55, b: 0.58, a: 1}
+  mysteryRevealDuration: 0.35
+  mysteryRevealScale: 1.08
   useCustomMacaronOrder: 1
   macaronOrder:
   - color: 1
@@ -1472,6 +1603,11 @@ MonoBehaviour:
     count: 4
   instruction: Choose a tray matching the front macarons.
   conveyorPath: {fileID: 2183140255911557991}
+  feederBranches: []
+  collectionGate: {fileID: 0}
+  independentLanePacking: 1
+  loopSpacingMultiplier: 0.9
+  feederSpacingMultiplier: 0.9
   trayRoot: {fileID: 5201214337045001279}
   waitingSlots:
   - {fileID: 8259943172019579074}
@@ -1482,6 +1618,11 @@ MonoBehaviour:
   - {fileID: 8688420921525187875}
   counterAnchor: {fileID: 4051812308189055574}
   columns: 2
+  clusterColors: 1
+  colorClusterSize: 12
+  minColorRunRows: 1
+  maxColorRunRows: 10
+  activeColorLimit: 3
   laneSpacing: 0.34658164
   rowSpacing: 0.32
   stopBeforeExit: 0.1
@@ -1489,6 +1630,10 @@ MonoBehaviour:
   cameraTilt: 72
   cameraFieldOfView: 35
   cameraPadding: {x: 0.015, y: 0.015, z: 0.12, w: 0.065}
+  conveyorTrack: {fileID: 0}
+  gateMountRoot: {fileID: 0}
+  gateMounts: []
+  bindWaitingSlotsToGates: 0
 --- !u!1 &8347224853771439140
 GameObject:
   m_ObjectHideFlags: 0
