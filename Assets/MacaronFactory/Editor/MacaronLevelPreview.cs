@@ -106,6 +106,15 @@ namespace BlockShooter.Editor
             track.SideMaterial = belt.GetComponent<Renderer>().sharedMaterials[0];
             track.TopMaterial = belt.GetComponent<Renderer>().sharedMaterials[1];
             track.SetTrackShape(preset, 1);
+            float diameter = factory.macaronPrefabs.Max(prefab =>
+            {
+                var bounds = prefab.GetComponent<Renderer>().localBounds;
+                return 2 * Mathf.Max(Mathf.Abs(bounds.center.x) + bounds.extents.x,
+                    Mathf.Abs(bounds.center.z) + bounds.extents.z);
+            }) * level.conveyorMacaronScale;
+            track.SetLaneCount(level.conveyorLaneCount);
+            track.SetItemDiameter(diameter);
+            track.SetSpacing(level.laneSpacing, level.rowSpacing);
             track.Configure(factory.sourceLoopSpeed);
             track.BuildVisualBelt();
             var mainBounds = new Bounds(track.EvaluateWorld(0, out _), Vector3.zero);
@@ -115,6 +124,7 @@ namespace BlockShooter.Editor
                 0, level.waitingSlots.Max(slot => slot.position.z) + 1 - mainBounds.min.z);
             belt.transform.position += offset;
             mainBounds.center += offset;
+            AddConveyorMacaronPreview(factory, level, track);
             foreach (var tray in level.GetTrays())
             {
                 if (tray.lid != null) tray.lid.gameObject.SetActive(tray.mystery);
@@ -139,6 +149,40 @@ namespace BlockShooter.Editor
             bounds = PreviewBounds().ToArray();
             _bounds = bounds[0]; foreach (var box in bounds) _bounds.Encapsulate(box);
             foreach (var t in _root.GetComponentsInChildren<Transform>(true)) t.gameObject.hideFlags = HideFlags.HideAndDontSave;
+        }
+
+        private static void AddConveyorMacaronPreview(MacaronFactory factory, MacaronLevel level,
+            SodaConveyor.SodaConveyorTrack track)
+        {
+            var root = new GameObject("Conveyor macarons (preview only)").transform;
+            root.SetParent(track.transform, true);
+            var colors = new[] { BlockShooter.BlockColorType.Red,
+                BlockShooter.BlockColorType.Green, BlockShooter.BlockColorType.Yellow,
+                BlockShooter.BlockColorType.Blue, BlockShooter.BlockColorType.Purple,
+                BlockShooter.BlockColorType.Orange };
+            // ponytail: cap preview geometry at 64 rows; raise this if authors need denser full-loop previews.
+            int rows = Mathf.Clamp(Mathf.FloorToInt(track.SplineWorldLength / Mathf.Max(.01f, level.rowSpacing)), 1, 64);
+            for (int row = 0; row < rows; row++)
+            {
+                float t = Mathf.Repeat(1f - row * level.rowSpacing / track.SplineWorldLength, 1f);
+                var center = track.EvaluateWorld(t, out var forward);
+                var right = Vector3.Cross(Vector3.up, forward).normalized;
+                var rotation = Quaternion.LookRotation(forward, Vector3.up);
+                var color = colors[row % colors.Length];
+                var prefab = factory.MacaronPrefab(color);
+                var renderer = prefab.GetComponent<Renderer>();
+                float scale = level.conveyorMacaronScale;
+                for (int lane = 0; lane < level.conveyorLaneCount; lane++)
+                {
+                    var macaron = Object.Instantiate(prefab, root);
+                    macaron.name = $"Preview {color}";
+                    macaron.transform.localScale = Vector3.one * scale;
+                    macaron.transform.SetPositionAndRotation(
+                        center + right * ((lane - (level.conveyorLaneCount - 1) * .5f) * level.laneSpacing)
+                        + Vector3.up * (-renderer.localBounds.min.y * scale), rotation);
+                    factory.ApplyMacaronColor(macaron.GetComponent<Renderer>(), color);
+                }
+            }
         }
     }
 }

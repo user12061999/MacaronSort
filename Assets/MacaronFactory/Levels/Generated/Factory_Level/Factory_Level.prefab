@@ -640,6 +640,7 @@ MonoBehaviour:
   overrideCakeSupply: 0
   colorCount: 6
   cakeCount: 320
+  trayLayoutStyle: 0
   shuffleTrayColors: 1
   trayArrangementSeed: 1
   repeatedTierOffset: {x: 0.12, y: 0.08}
@@ -733,7 +734,7 @@ MonoBehaviour:
   minColorRunRows: 1
   maxColorRunRows: 10
   activeColorLimit: 3
-  laneSpacing: 0.3
+  laneSpacing: 0.5
   rowSpacing: 0.5
   stopBeforeExit: 0.08
   exitZoneLength: 0.65
